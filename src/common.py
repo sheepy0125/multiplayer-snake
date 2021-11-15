@@ -6,16 +6,18 @@ Created by sheepy0125
 Common (shared) code!
 """
 
-### Global imports ###
+### Setup ###
+# Global imports
 import hisock
-from tools import Logger
-from os import environ
 from pathlib import Path
 
-### Credits ###
-if not environ["multiplayer_snake_credits_shown"]:
-    import constants
+# Other imports (must be deleted later)
+from os import environ
+import constants
+from tools import Logger
 
+### Credits ###
+if not "multiplayer_snake_credits" in environ:
     Logger.log(f"Using hisock {hisock.constants.__version__}")
     Logger.log(
         f"Version {constants.__version__} of {constants.__name__} "
@@ -23,11 +25,11 @@ if not environ["multiplayer_snake_credits_shown"]:
         f"(copyright {constants.__copyright__} "
         f"under the {constants.__license__} license)"
     )
-    environ["multiplayer_snake_credits_shown"] = "probably yeah sure"
-
-    del constants
-del environ
+    environ["multiplayer_snake_credits"] = "probably yeah sure"
 
 ### Constants ###
 ROOT_PATH: Path = Path(__file__).parent.parent
 DEFAULT_CONFIG_PATH: Path = ROOT_PATH / "config.jsonc"
+
+### Delete other imports ###
+del environ, constants, Logger
