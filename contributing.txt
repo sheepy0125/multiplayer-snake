@@ -24,6 +24,7 @@ hisock
 pygame
 MIDDLE - local files (files in src)
 common.py
+constants.py
 tools.py
 config_parser.py
 entity.py

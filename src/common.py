@@ -9,6 +9,7 @@ Common (shared) code!
 ### Setup ###
 # Global imports
 import hisock
+import pygame
 from pathlib import Path
 
 # Other imports (must be deleted later)
