@@ -1,0 +1,8 @@
+/* Config for Multiplayer Snake */
+{
+	/* Server config */
+	"server": {},
+
+	/* Client config */
+	"client": {}
+}

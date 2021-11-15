@@ -1,0 +1,47 @@
+Logging messages
+Only log messages when absolutely necessary
+(or when VERBOSE is set to true from the config file)
+Don't include punctuation at the end of the message
+Avoid using "successfully" or "attempted ___ but failed"
+and things like that
+
+Comments
+For section comments, use the `### Comment ###` syntax
+For other comments, have a space between the `#` and the
+text
+Use proper grammar in the commments but don't use
+punctuation
+Only comment when it is going to help the person viewing
+the code (don't do like `# This declares function X`)
+
+Functions
+Use type hinting (using the new pipe for Union[] is okay)
+Use docstrings if the function is "complex"
+
+Structure for imports
+TOP - anything that is using the `import ___` syntax
+hisock
+pygame
+MIDDLE - local files (files in src)
+common.py
+tools.py
+config_parser.py
+entity.py
+world.py
+server.py
+client.py
+BOTTOM - other packages
+time
+tkinter
+os
+pathlib
+When importing imports from other files,
+use this same structure
+When importing through the `from ___ import ___`, import 
+globals and constants, then other imports, then classes, 
+then functions, then anything else
+
+Other
+Follow PEP8 (use the black formatter with line length of 89)
+Follow PEP20 (whoops)
+Don't reinvent the wheel, if it exists somewhere else then use it
