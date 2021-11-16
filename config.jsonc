@@ -1,18 +1,17 @@
 /* Config for Multiplayer Snake */
 {
+	/* Global config */
+	"verbose": true,
+
 	/* Server config */
-	"server": {
-		"verbose": true
-	},
+	"server": {},
 
 	/* Client config */
-	"client": {
-		"verbose": true
-	},
+	"client": {},
 
 	/* GUI config */
 	"gui": {
-		"window_size": [800, 600],
+		"window_size": [400, 300],
 		"widget_padding": 10,
 		"text_size": 12,
 		/* Colors (rgb) */

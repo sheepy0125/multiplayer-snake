@@ -39,3 +39,6 @@ def parse(config_path: Path | str | None = None) -> dict:
     # The JSON file being invalid, cannot continue
     Logger.fatal("Couldn't load config file (UNRECOVERABLE)")
     exit(1)
+
+
+# TODO: add config checker

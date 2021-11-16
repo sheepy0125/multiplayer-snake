@@ -31,6 +31,7 @@ entity.py
 world.py
 server.py
 client.py
+shared_game.py
 BOTTOM - other packages
 time
 tkinter

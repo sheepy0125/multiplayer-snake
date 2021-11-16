@@ -6,22 +6,17 @@ Created by sheepy0125
 Server side code!
 """
 
-# TODO: make a class that will take care of things like players online and all
-# TODO: the positions of the snek and food
-# TODO: Priority: high (will def. need when implementing the actual game)
-
-
 ### Setup ###
 import constants
 from common import hisock, pygame, Path
 from tools import Logger
 from pygame_tools import GlobalWindow, Text, Button, CenterRect
 from config_parser import parse
+from shared_game import BaseSnakePlayer
 
 CONFIG: dict = parse()
 GUI_CONFIG: dict = CONFIG["gui"]
 SERVER_CONFIG = CONFIG["server"]
-# TODO: add config checker
 
 # Setup pygame
 pygame.init()
@@ -29,6 +24,16 @@ GlobalWindow.window = pygame.display.set_mode(GUI_CONFIG["window_size"])
 pygame.display.set_caption(f"{constants.__name__} Server (GUI)")
 
 ### Classes ###
+class SnakeGame:
+    """Handles everything that will be sent to the clients"""
+
+    def __init__(self, num_players: int = 2):
+        """Please note, `num_players` currently does nothing"""
+
+        self.num_players = 2
+        self.players_online: list[BaseSnakePlayer] = []
+
+
 class ServerWindow:
     """Handles all the widgets inside the window"""
 
@@ -37,11 +42,11 @@ class ServerWindow:
 
         self.widgets = self.create_widgets()
 
-        if SERVER_CONFIG["verbose"]:
+        if CONFIG["verbose"]:
             Logger.log("Server window created")
 
     def create_widgets(self) -> list:
-        if SERVER_CONFIG["verbose"]:
+        if CONFIG["verbose"]:
             Logger.log("Created widgets")
 
         widgets: list = []
@@ -77,7 +82,7 @@ class Widget:
 
         self.rect = pygame.Rect(self.pos, self.size)
 
-        if SERVER_CONFIG["verbose"]:
+        if CONFIG["verbose"]:
             Logger.log(f"Created widget {self.identifier}")
 
     def draw(self):
@@ -118,7 +123,7 @@ class PlayersListWidget(Widget):
 
     def update(self, players_online: list):
         for num, player in enumerate(players_online):
-            if SERVER_CONFIG["verbose"]:
+            if CONFIG["verbose"]:
                 Logger.log(f"Created text widget for player {player}")
 
             self.text_widgets.append(
