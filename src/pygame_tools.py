@@ -23,11 +23,7 @@ class Text:
     """Display text"""
 
     def __init__(
-        self,
-        text_to_display: str,
-        pos: tuple,
-        size: int,
-        color: Union[str, tuple] = "white",
+        self, text_to_display: str, pos: tuple, size: int, color: str | tuple = "white"
     ):
         # Create text
         self.text_surf = pygame.font.SysFont("Arial", size).render(
@@ -42,7 +38,7 @@ class Text:
 class Button:
     """Display a button for Pygame"""
 
-    def __init__(self, pos: tuple, size: tuple, color: Union[str, tuple] = "white"):
+    def __init__(self, pos: tuple, size: tuple, color: str | tuple = "white"):
         self.button_pos = pos
         self.button_size = size
         self.button_color = color
@@ -81,10 +77,17 @@ class Button:
 class CenterRect(pygame.Rect):
     """A Pygame rectangle, but it is centered. Don't ask"""
 
-    def __init__(self, pos: tuple, size: tuple, color: Union[str, tuple] = "white"):
+    def __init__(
+        self,
+        pos: tuple,
+        size: tuple,
+        color: str | tuple = "white",
+        rounded_corner_radius: int | None = None,
+    ):
         self.center_pos = pos
         self.size = size
         self.color = color
+        self.rounded_corner_radius = rounded_corner_radius
 
         # Get center position -> left / top positions
         self.left = self.center_pos[0] - (self.size[0] * 0.5)
@@ -94,4 +97,11 @@ class CenterRect(pygame.Rect):
         super().__init__(self.left, self.top, *self.size)
 
     def draw(self):
+        if self.rounded_corner_radius is not None or self.rounded_corner_radius > 0:
+            pygame.draw.rect(
+                GlobalWindow.window,
+                self.color,
+                self,
+                border_radius=self.rounded_corner_radius,
+            )
         pygame.draw.rect(GlobalWindow.window, self.color, self)
