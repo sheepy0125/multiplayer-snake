@@ -35,23 +35,11 @@ class BaseSnakePlayer:
     deal with whatever needs to happen when the snake dies.
     """
 
-    def __init__(
-        self,
-        default_pos: tuple,
-        default_length: int = 1,
-        identifier: int | str = "unknown snake",
-    ):
-        # For resetting
-        self.default_pos = default_pos
-        self.default_tail_length = default_length
+    def __init__(self, *args, **kwargs):
+        self._reset(*args, **kwargs)
+        self._init_args = args
+        self._init_kwargs = kwargs
 
-        self.identifier = identifier
-        self.alive = True
-        self.tail: list[tuple] = [default_pos]  # List of positions
-        self.tail_length = default_length
-        self.pos = default_pos
-
-        self.direction = "right"
         self.direction_velocity_enum = {
             "up": (0, -1),
             "down": (0, 1),
@@ -59,8 +47,24 @@ class BaseSnakePlayer:
             "right": (1, 0),
         }
 
+    def _reset(
+        self,
+        default_pos: tuple,
+        default_length: int = 1,
+        identifier: int | str = "unknown snake",
+    ):
+        self.identifier = identifier
+        self.alive: bool = True
+        self.tail: list[tuple] = [default_pos]  # List of positions
+        self.tail_length = default_length
+        self.pos = default_pos
+        self.direction: str = "right"
+
         if CONFIG["verbose"]:
             Logger.log(f"Snake {self.identifier} created")
+
+    def reset(self):
+        self._reset(*self._init_args, **self._init_kwargs)
 
     def move(self):
         # Update position
@@ -103,7 +107,3 @@ class BaseSnakePlayer:
         # Typically in a normal snake game, we'd need to reset everything
         # now. But, since this is multiplayer snake, the server will handle
         # that.
-
-    def reset(self):
-        # Just re-initialize the snake, nothin' fancy
-        self.__init__(self.default_pos, self.default_tail_length, self.identifier)

@@ -40,6 +40,12 @@ snake_game = SnakeGame()
 class ServerSnakePlayer(BaseSnakePlayer):
     """Server side snake player"""
 
+    def _reset(self, ip_address: str, *args, **kwargs):
+        """BaseSnakePlayer reset, but it has more (oh no)"""
+
+        self.ip_address = ip_address
+        super()._reset(*args, **kwargs)
+
     def snake_died(self, reason: str = "unknown"):
         super().snake_died(reason)
         snake_game.snake_died(identifier=self.identifier, reason=reason)
@@ -56,7 +62,6 @@ class ServerWindow:
         if CONFIG["verbose"]:
             Logger.log("Server window created")
 
-    # FIXME: use states!
     def create_widgets(self) -> list:
         if CONFIG["verbose"]:
             Logger.log("Created widgets")
@@ -125,36 +130,55 @@ class Widget:
 
 
 class PlayersListWidget(Widget):
+    """Widget for players online"""
+
     def __init__(self):
         super().__init__(
             pos=(GUI_CONFIG["widget_padding"], GUI_CONFIG["widget_padding"]),
             size=(
                 GUI_CONFIG["window_size"][0] // 4 * 1,
-                GUI_CONFIG["window_size"][1] - (GUI_CONFIG["widget_padding"] * 2),
+                GUI_CONFIG["window_size"][1] // 2 - (GUI_CONFIG["widget_padding"] * 2),
             ),
         )
 
-        self.text_widgets: list[Text] = []
+        self.text_widgets: dict = {
+            "immutable": [
+                Text(
+                    "Players online",
+                    pos=(
+                        self.pos[0] + self.size[0] // 2,
+                        self.pos[1] + GUI_CONFIG["widget_padding"],
+                    ),
+                    size=GUI_CONFIG["text_size"],
+                    color=GUI_CONFIG["colors"]["widget"]["text"],
+                )
+            ],
+            "mutable": [],
+        }
         self.update(do_check=False)
 
     def update(self, do_check: bool = True):
         # Check if it changed at all (don't regen if not needed)
-        if do_check and len(self.text_widgets) == len(snake_game.players_online):
+        if do_check and (
+            len(self.text_widgets["mutable"]) == len(snake_game.players_online)
+        ):
             return
 
         if CONFIG["verbose"]:
-            Logger.log("Updating players")
+            Logger.log(
+                f"Updating players (players online: {len(snake_game.players_online)})"
+            )
 
-        self.text_widgets: list[Text] = []
+        mutable_text_widgets: list[Text] = []
         for num, player in enumerate(snake_game.players_online):
-            self.text_widgets.append(
+            mutable_text_widgets.append(
                 Text(
-                    player.identifier,
+                    f"{player.identifier} ({player.ip_address})",
                     pos=(
                         self.pos[0] + self.size[0] // 2,
                         (
                             self.pos[1]
-                            + ((GUI_CONFIG["text_size"] + 4) * num + 1)
+                            + ((GUI_CONFIG["text_size"] + 4) * (num + 2))  # 2 b/c title
                             + GUI_CONFIG["widget_padding"]
                         ),
                     ),
@@ -166,11 +190,14 @@ class PlayersListWidget(Widget):
             if CONFIG["verbose"]:
                 Logger.log(f"Created text widget for player snake {player.identifier}")
 
+            self.text_widgets["mutable"] = mutable_text_widgets
+
     def draw(self):
         super().draw()
 
-        for text in self.text_widgets:
-            text.draw()
+        for text_list in self.text_widgets.values():
+            for text in text_list:
+                text.draw()
 
 
 ### Main ###
@@ -187,9 +214,16 @@ while True:
             if event.key == pygame.K_SPACE:
                 snake_game.players_online.append(
                     ServerSnakePlayer(
-                        default_pos=(0, 0), default_length=1, identifier="Testing!"
+                        default_pos=(0, 0),
+                        default_length=1,
+                        identifier="Testing!",
+                        ip_address="192.168.86.60",
                     )
                 )
+
+            elif event.key == pygame.K_r:
+                for player in snake_game.players_online:
+                    player.reset()
 
     # Update
     server_win.update()
