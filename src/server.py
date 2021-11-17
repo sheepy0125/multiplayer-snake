@@ -34,6 +34,17 @@ class SnakeGame:
         self.players_online: list[BaseSnakePlayer] = []
 
 
+snake_game = SnakeGame()
+
+
+class ServerSnakePlayer(BaseSnakePlayer):
+    """Server side snake player"""
+
+    def snake_died(self, reason: str = "unknown"):
+        super().snake_died(reason)
+        snake_game.snake_died(identifier=self.identifier, reason=reason)
+
+
 class ServerWindow:
     """Handles all the widgets inside the window"""
 
@@ -45,15 +56,21 @@ class ServerWindow:
         if CONFIG["verbose"]:
             Logger.log("Server window created")
 
+    # FIXME: use states!
     def create_widgets(self) -> list:
         if CONFIG["verbose"]:
             Logger.log("Created widgets")
 
         widgets: list = []
-
         widgets.append(PlayersListWidget())
 
         return widgets
+
+    def update(self):
+        """Updates all the widgets"""
+
+        for widget in self.widgets:
+            widget.update()
 
     def draw(self):
         """Draws all the widgets and the main window"""
@@ -85,6 +102,10 @@ class Widget:
         if CONFIG["verbose"]:
             Logger.log(f"Created widget {self.identifier}")
 
+    def update(self):
+        # Will be overwritten hopefully
+        Logger.warn(f"Widget {self.identifier} has no update method")
+
     def draw(self):
         # Main widget
         pygame.draw.rect(
@@ -114,21 +135,21 @@ class PlayersListWidget(Widget):
         )
 
         self.text_widgets: list[Text] = []
+        self.update(do_check=False)
 
-        # When the widget is created, no players will be online
-        # If this is not the case, then oh well!
-        # self.update([])
-        # Testing!
-        self.update(["Player 1", "Player 2"])
+    def update(self, do_check: bool = True):
+        # Check if it changed at all (don't regen if not needed)
+        if do_check and len(self.text_widgets) == len(snake_game.players_online):
+            return
 
-    def update(self, players_online: list):
-        for num, player in enumerate(players_online):
-            if CONFIG["verbose"]:
-                Logger.log(f"Created text widget for player {player}")
+        if CONFIG["verbose"]:
+            Logger.log("Updating players")
 
+        self.text_widgets: list[Text] = []
+        for num, player in enumerate(snake_game.players_online):
             self.text_widgets.append(
                 Text(
-                    player,
+                    player.identifier,
                     pos=(
                         self.pos[0] + self.size[0] // 2,
                         (
@@ -141,6 +162,9 @@ class PlayersListWidget(Widget):
                     color=GUI_CONFIG["colors"]["widget"]["text"],
                 )
             )
+
+            if CONFIG["verbose"]:
+                Logger.log(f"Created text widget for player snake {player.identifier}")
 
     def draw(self):
         super().draw()
@@ -157,6 +181,18 @@ while True:
         if event.type == pygame.QUIT:
             pygame.quit()
             exit(0)  # TODO: add proper exit
+
+        if event.type == pygame.KEYDOWN:
+            # Debug!!!
+            if event.key == pygame.K_SPACE:
+                snake_game.players_online.append(
+                    ServerSnakePlayer(
+                        default_pos=(0, 0), default_length=1, identifier="Testing!"
+                    )
+                )
+
+    # Update
+    server_win.update()
 
     # Draw
     server_win.draw()
