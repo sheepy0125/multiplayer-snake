@@ -7,6 +7,7 @@ Created by sheepy0125
 ### Setup ###
 import os  # Platform checking for ANSI colors
 from time import strftime
+from urllib import request
 
 ### Logger ###
 class Logger:
@@ -55,3 +56,16 @@ class Logger:
         Logger.fatal(
             f"{type(error).__name__}: {str(error)} (line {error.__traceback__.tb_lineno})"
         )
+
+
+### Get public IP ###
+def get_public_ip() -> str:
+    """Get the public IP address"""
+
+    try:
+        req = request.Request("https://icanhazip.com/")
+        with request.urlopen(req) as response:
+            return response.read().decode("ascii")[:-1]  # Remove newline
+    except Exception as error:
+        Logger.fatal(f"Failed to get public IP: {error}")
+        return "0.0.0.0"

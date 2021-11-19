@@ -4,7 +4,9 @@
 	"verbose": true,
 
 	/* Server config */
-	"server": {},
+	"server": {
+		"port": 6500
+	},
 
 	/* Client config */
 	"client": {},
