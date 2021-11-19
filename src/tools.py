@@ -6,8 +6,10 @@ Created by sheepy0125
 
 ### Setup ###
 import os  # Platform checking for ANSI colors
+from constants import DISALLOWED_CHARS_FOR_USERNAME
 from time import strftime
 from urllib import request
+from random import randint
 
 ### Logger ###
 class Logger:
@@ -69,3 +71,22 @@ def get_public_ip() -> str:
     except Exception as error:
         Logger.fatal(f"Failed to get public IP: {error}")
         return "0.0.0.0"
+
+
+### Get discriminator ###
+def get_discriminator(size: int = 4) -> str:
+    """Returns a discriminator of size length"""
+
+    return "".join([f"{randint(0, 10)!s}" for _ in range(size)])
+
+
+### Check username ###
+def check_username(username: str) -> bool:
+    """Checks if username is valid"""
+
+    return (
+        len(username) >= 3
+        and len(username) <= 16
+        and username.isidentifier()
+        and not any(char in DISALLOWED_CHARS_FOR_USERNAME for char in username)
+    )

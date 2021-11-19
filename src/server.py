@@ -9,7 +9,7 @@ Server side code!
 ### Setup ###
 import constants
 from common import hisock, pygame, Path
-from tools import Logger, get_public_ip
+from tools import Logger, get_public_ip, get_discriminator, check_username
 from pygame_tools import GlobalWindow, Text, Button, CenterRect
 from config_parser import parse
 from shared_game import BaseSnakePlayer
@@ -24,6 +24,9 @@ SERVER_CONFIG = CONFIG["server"]
 pygame.init()
 GlobalWindow.window = pygame.display.set_mode(GUI_CONFIG["window_size"])
 pygame.display.set_caption(f"{constants.__name__} Server (GUI)")
+
+# Setup hisock
+server = hisock.start_server((hisock.utils.get_local_ip(), CONFIG["server"]["port"]))
 
 ### Classes ###
 class SnakeGame:
@@ -43,6 +46,31 @@ class SnakeGame:
         """Updates the game (must be started first)"""
 
         self.uptime = int(time() - self.start_time)
+
+        # Update players
+        for player in self.players_online:
+            player.update()
+
+    def add_player(self, ip_address: str, username: str) -> bool:
+        """Adds a player to the game, returns if valid"""
+
+        # Too many players already
+        if len(self.players_online) >= self.num_players:
+            return False
+
+        # Username isn't good
+        if not check_username(username):
+            return False
+
+        # Everything seems fine, add the player
+        self.players_online.append(
+            ServerSnakePlayer(
+                default_pos=(0, 0),
+                default_length=1,
+                identifier=f"{username}#{get_discriminator()}",
+                ip_address=ip_address,
+            )
+        )
 
 
 snake_game = SnakeGame()
@@ -257,6 +285,30 @@ class ServerStatusWidget(Widget):
                 text.draw()
 
 
+### Server handlers ###
+@server.on("join")
+def on_client_join(client_data: dict):
+    Logger.log(
+        f"Client with IP {hisock.iptup_to_str(client_data['ip'])} connected to the"
+        " server, but no username yet."
+    )
+
+
+@server.on("connect_to_game")
+def on_client_connect_to_game(client_data: dict, username: str):
+    success = snake_game.add_player(ip=client_data["ip"], username=username)
+
+    if success:
+        Logger.log(
+            f"Client with IP {hisock.iptup_to_str(client_data['ip'])} connected to the"
+            f" server with username {username}."
+        )
+
+    server.send_client(
+        client_data["ip"], "connect_to_game_response", {"success": success}
+    )
+
+
 ### Main ###
 server_win = ServerWindow()
 while True:
@@ -283,6 +335,7 @@ while True:
                     player.reset()
 
     # Update
+    server.run()
     server_win.update()
 
     # Draw
