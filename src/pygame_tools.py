@@ -8,15 +8,16 @@ Pygame tools!
 
 ### Setup ###
 from common import pygame
-from typing import Union
+from tools import Logger
 
 pygame.font.init()
 
 
-class GlobalWindow:
+class GlobalPygame:
     """Window surface object but it's global now!"""
 
     window: pygame.Surface | None = None
+    clock: pygame.time.Clock = None
 
 
 class Text:
@@ -32,7 +33,7 @@ class Text:
         self.text_rect = self.text_surf.get_rect(center=pos)
 
     def draw(self):
-        GlobalWindow.window.blit(self.text_surf, self.text_rect)
+        GlobalPygame.window.blit(self.text_surf, self.text_rect)
 
 
 class Button:
@@ -99,9 +100,72 @@ class CenterRect(pygame.Rect):
     def draw(self):
         if self.rounded_corner_radius is not None or self.rounded_corner_radius > 0:
             pygame.draw.rect(
-                GlobalWindow.window,
+                GlobalPygame.window,
                 self.color,
                 self,
                 border_radius=self.rounded_corner_radius,
             )
-        pygame.draw.rect(GlobalWindow.window, self.color, self)
+        pygame.draw.rect(GlobalPygame.window, self.color, self)
+
+
+class Widget:
+    """Base widget class"""
+
+    def __init__(
+        self,
+        pos: tuple,
+        size: tuple,
+        text_size: int,
+        text_color: tuple | list,
+        widget_color: tuple | list,
+        border_color: tuple | list,
+        padding: int,
+        identifier: str | int = "unknown widget",
+    ):
+        self.pos = pos
+        self.size = size
+        self.identifier = identifier
+
+        self.rect = pygame.Rect(self.pos, self.size)
+
+        self.text_size = text_size
+        self.text_color = text_color
+        self.widget_color = widget_color
+        self.border_color = border_color
+        self.padding = padding
+
+    def create_text(
+        self,
+        text: str,
+        offset: int,
+    ) -> Text:
+        return Text(
+            text,
+            pos=(
+                self.pos[0] + self.size[0] // 2,
+                self.pos[1] + (offset * self.text_size) + self.padding,
+            ),
+            size=self.text_size,
+            color=self.text_color,
+        )
+
+    def update(self):
+        # Will be overwritten hopefully
+        Logger.warn(f"Widget {self.identifier} has no update method")
+
+    def draw(self):
+        # Main widget
+        pygame.draw.rect(
+            GlobalPygame.window,
+            self.widget_color,
+            self.rect,
+            border_radius=10,
+        )
+        # Widget border
+        pygame.draw.rect(
+            GlobalPygame.window,
+            self.border_color,
+            self.rect,
+            border_radius=10,
+            width=2,
+        )

@@ -10,7 +10,7 @@ Server side code!
 import constants
 from common import hisock, pygame, Path
 from tools import Logger, get_public_ip, get_discriminator, check_username
-from pygame_tools import GlobalWindow, Text, Button, CenterRect
+from pygame_tools import GlobalPygame, Text, Button, CenterRect, Widget
 from config_parser import parse
 from shared_game import BaseSnakePlayer
 from time import time
@@ -22,7 +22,7 @@ SERVER_CONFIG = CONFIG["server"]
 
 # Setup pygame
 pygame.init()
-GlobalWindow.window = pygame.display.set_mode(GUI_CONFIG["window_size"])
+GlobalPygame.window = pygame.display.set_mode(GUI_CONFIG["window_size"])
 pygame.display.set_caption(f"{constants.__name__} Server (GUI)")
 
 # Setup hisock
@@ -119,7 +119,7 @@ class ServerWindow:
         """Draws all the widgets and the main window"""
 
         # Draw background
-        GlobalWindow.window.fill(GUI_CONFIG["colors"]["background"])
+        GlobalPygame.window.fill(GUI_CONFIG["colors"]["background"])
 
         # Draw widgets
         for widget in self.widgets:
@@ -127,66 +127,30 @@ class ServerWindow:
 
 
 ### Widgets ###
-class Widget:
-    """Base widget class"""
+class ServerWidget(Widget):
+    def __init__(self, *args, **kwargs):
+        # Colors and stuff
+        text_size = GUI_CONFIG["text_size"]
+        text_color = GUI_CONFIG["colors"]["widget"]["text"]
+        padding = GUI_CONFIG["widget_padding"]
+        widget_color = GUI_CONFIG["colors"]["widget"]["background"]
+        border_color = GUI_CONFIG["colors"]["widget"]["border"]
 
-    def __init__(
-        self,
-        pos: tuple,
-        size: tuple,
-        identifier: str | int = "unknown widget",
-    ):
-        self.pos = pos
-        self.size = size
-        self.identifier = identifier
-
-        self.rect = pygame.Rect(self.pos, self.size)
+        super().__init__(
+            text_size=text_size,
+            text_color=text_color,
+            padding=padding,
+            widget_color=widget_color,
+            border_color=border_color,
+            *args,
+            **kwargs,
+        )
 
         if CONFIG["verbose"]:
-            Logger.log(f"Created widget {self.identifier}")
-
-    def create_text(
-        self,
-        text: str,
-        offset: int,
-        size: int = GUI_CONFIG["text_size"],
-        color: tuple = GUI_CONFIG["colors"]["text"],
-    ):
-        return Text(
-            text,
-            pos=(
-                self.pos[0] + self.size[0] // 2,
-                self.pos[1]
-                + (offset * GUI_CONFIG["text_size"])
-                + GUI_CONFIG["widget_padding"],
-            ),
-            size=size,
-            color=color,
-        )
-
-    def update(self):
-        # Will be overwritten hopefully
-        Logger.warn(f"Widget {self.identifier} has no update method")
-
-    def draw(self):
-        # Main widget
-        pygame.draw.rect(
-            GlobalWindow.window,
-            GUI_CONFIG["colors"]["widget"]["background"],
-            self.rect,
-            border_radius=10,
-        )
-        # Widget border
-        pygame.draw.rect(
-            GlobalWindow.window,
-            GUI_CONFIG["colors"]["widget"]["border"],
-            self.rect,
-            border_radius=10,
-            width=2,
-        )
+            Logger.log(f"Created {self.identifier} widget")
 
 
-class PlayersListWidget(Widget):
+class PlayersListWidget(ServerWidget):
     """Widget for players online"""
 
     def __init__(self):
@@ -240,7 +204,7 @@ class PlayersListWidget(Widget):
                 text.draw()
 
 
-class ServerStatusWidget(Widget):
+class ServerStatusWidget(ServerWidget):
     """Widget for telling stats about the server"""
 
     def __init__(self):
@@ -335,7 +299,7 @@ while True:
                     player.reset()
 
     # Update
-    server.run()
+    server.run()  # Nothing after this point gets run
     server_win.update()
 
     # Draw
