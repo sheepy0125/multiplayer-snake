@@ -12,6 +12,12 @@ from jsonc_parser.errors import FileError, ParserError
 from common import DEFAULT_CONFIG_PATH, Path
 from tools import Logger
 
+
+### Caching ###
+class Cache:
+    config = {}
+
+
 ### Parse ###
 def parse(config_path: Path | str | None = None) -> dict:
     """
@@ -19,13 +25,17 @@ def parse(config_path: Path | str | None = None) -> dict:
     If config_path is None, use default config path
     """
 
+    # Caching
+    if Cache.config:
+        return Cache.config
+
     if config_path is None:
         config_path = DEFAULT_CONFIG_PATH
 
     try:
         with open(config_path, "r") as config_file:
             config: dict = dict(JsoncParser.parse_str(config_file.read()))
-    except FileNotFoundError:
+    except (FileNotFoundError, FileError):
         Logger.fatal(f"Config filepath ({config_path!s}) doesn't exist")
     except ParserError:
         Logger.fatal(f"Config file isn't a valid JSONC file")
@@ -34,6 +44,7 @@ def parse(config_path: Path | str | None = None) -> dict:
             f"Loaded {len(config['server'].keys())} keys for server config and "
             f"{len(config['client'].keys())} keys for client config"
         )
+        Cache.config = config
         return config
 
     # The JSON file being invalid, cannot continue

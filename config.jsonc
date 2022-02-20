@@ -1,7 +1,7 @@
 /* Config for Multiplayer Snake */
 {
 	/* Global config */
-	"verbose": true,
+	"verbose": true /* TODO: Logger.verbose or Logger.debug */,
 
 	/* Server config */
 	"server": {
