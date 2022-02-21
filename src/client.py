@@ -247,7 +247,7 @@ def run():
             print("\nExiting gracefully", end="... ")
             if isinstance(State.current, GameState):
                 State.current.client.send("leave")
-                State.current.client.stop()
+                State.current.client.close()
             raise
         # except Exception as error:
         #   Logger.log_error(error)
