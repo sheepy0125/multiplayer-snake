@@ -18,6 +18,13 @@ class GlobalPygame:
 
     window: pygame.Surface | None = None
     clock: pygame.time.Clock = None
+    delta_time: float = 0.0
+    fps: int = 15
+
+    @staticmethod
+    def update():
+        pygame.display.update()
+        GlobalPygame.delta_time = GlobalPygame.clock.tick(GlobalPygame.fps)
 
 
 class Text:
@@ -26,6 +33,11 @@ class Text:
     def __init__(
         self, text_to_display: str, pos: tuple, size: int, color: str | tuple = "white"
     ):
+        self.pos = pos
+        self.text_to_display = text_to_display
+        self.size = size
+        self.color = color
+
         # Create text
         self.text_surf = pygame.font.SysFont("Arial", size).render(
             text_to_display, True, color
@@ -83,7 +95,7 @@ class CenterRect(pygame.Rect):
         pos: tuple,
         size: tuple,
         color: str | tuple = "white",
-        rounded_corner_radius: int | None = None,
+        rounded_corner_radius: int = 0,
     ):
         self.center_pos = pos
         self.size = size
@@ -134,18 +146,17 @@ class Widget:
         self.border_color = border_color
         self.padding = padding
 
-    def create_text(
-        self,
-        text: str,
-        offset: int,
-    ) -> Text:
+    def create_text(self, text: str, offset: int = 0, text_size: int = 0) -> Text:
+        if text_size == 0:
+            text_size = self.text_size
+
         return Text(
             text,
             pos=(
                 self.pos[0] + self.size[0] // 2,
-                self.pos[1] + (offset * self.text_size) + self.padding,
+                self.pos[1] + (offset * text_size) + self.padding,
             ),
-            size=self.text_size,
+            size=text_size,
             color=self.text_color,
         )
 

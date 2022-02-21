@@ -26,7 +26,10 @@ GlobalPygame.window = pygame.display.set_mode(GUI_CONFIG["window_size"])
 pygame.display.set_caption(f"{constants.__name__} Server (GUI)")
 
 # Setup hisock
-server = hisock.start_server((hisock.utils.get_local_ip(), CONFIG["server"]["port"]))
+server = hisock.server.ThreadedHiSockServer(
+    (hisock.utils.get_local_ip(), CONFIG["server"]["port"]),
+    max_connections=2,
+)
 
 ### Classes ###
 class SnakeGame:
@@ -88,6 +91,34 @@ class ServerSnakePlayer(BaseSnakePlayer):
     def snake_died(self, reason: str = "unknown"):
         super().snake_died(reason)
         snake_game.snake_died(identifier=self.identifier, reason=reason)
+
+
+### Server handlers ###
+@server.on("join")
+def on_client_join(client_data):
+    Logger.log(
+        f"{client_data.ip} ({hisock.iptup_to_str(client_data.ip)})"
+        " connected to the server"
+    )
+
+    if not snake_game.add_player(client_data.ip, client_data.name):
+        # Failed to join, disconnect player
+        server.disconnect_client(client_data)
+
+
+@server.on("connect_to_game")
+def on_client_connect_to_game(client_data: dict, username: str):
+    success = snake_game.add_player(ip=client_data["ip"], username=username)
+
+    if success:
+        Logger.log(
+            f"Client with IP {hisock.iptup_to_str(client_data['ip'])} connected to the"
+            f" server with username {username}."
+        )
+
+    server.send_client(
+        client_data["ip"], "connect_to_game_response", {"success": success}
+    )
 
 
 class ServerWindow:
@@ -249,32 +280,9 @@ class ServerStatusWidget(ServerWidget):
                 text.draw()
 
 
-### Server handlers ###
-@server.on("join")
-def on_client_join(client_data: dict):
-    Logger.log(
-        f"Client with IP {hisock.iptup_to_str(client_data['ip'])} connected to the"
-        " server, but no username yet."
-    )
-
-
-@server.on("connect_to_game")
-def on_client_connect_to_game(client_data: dict, username: str):
-    success = snake_game.add_player(ip=client_data["ip"], username=username)
-
-    if success:
-        Logger.log(
-            f"Client with IP {hisock.iptup_to_str(client_data['ip'])} connected to the"
-            f" server with username {username}."
-        )
-
-    server.send_client(
-        client_data["ip"], "connect_to_game_response", {"success": success}
-    )
-
-
 ### Main ###
 server_win = ServerWindow()
+server.start()
 while True:
     # Handle events
     for event in pygame.event.get():
@@ -299,7 +307,6 @@ while True:
                     player.reset()
 
     # Update
-    server.run()  # Nothing after this point gets run
     server_win.update()
 
     # Draw
