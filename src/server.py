@@ -97,7 +97,7 @@ class ServerSnakePlayer(BaseSnakePlayer):
 @server.on("join")
 def on_client_join(client_data):
     Logger.log(
-        f"{client_data.ip} ({hisock.iptup_to_str(client_data.ip)})"
+        f"{client_data.name} ({hisock.iptup_to_str(client_data.ip)})"
         " connected to the server"
     )
 
@@ -204,7 +204,7 @@ class PlayersListWidget(ServerWidget):
 
     def update(self, do_check: bool = True):
         if do_check and (
-            len(self.text_widgets["mutable"]) == len(snake_game.players_online)
+            len(self.text_widgets["mutable"]) == len(snake_game.players_online) * 2
         ):
             return
 
@@ -217,8 +217,14 @@ class PlayersListWidget(ServerWidget):
         for num, player in enumerate(snake_game.players_online):
             mutable_text_widgets.append(
                 self.create_text(
-                    f"{player.identifier} ({player.ip_address})",
-                    offset=(num + 2),  # 2 because of the title
+                    str(player.identifier),
+                    offset=(num * 2 + 2),  # 2 because of the title
+                )
+            )
+            mutable_text_widgets.append(
+                self.create_text(
+                    hisock.utils.iptup_to_str(player.ip_address),
+                    offset=(num * 2 + 2 + 1),  # 2 because of the title
                 ),
             )
 
