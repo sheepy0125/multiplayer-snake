@@ -8,7 +8,7 @@ Tools
 
 ### Setup ###
 import os  # Platform checking for ANSI colors
-from constants import DISALLOWED_CHARS_FOR_USERNAME
+from multiplayer_snake.constants import DISALLOWED_CHARS_FOR_USERNAME
 from time import strftime
 from urllib import request
 from random import randint

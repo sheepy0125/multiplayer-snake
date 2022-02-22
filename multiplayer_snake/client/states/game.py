@@ -7,8 +7,8 @@ Client join state code
 """
 
 ### Setup ###
-from multiplayer_snake.shared.common import pygame, Logger
-from multiplayer_snake.client.states.state import State, update_state
+from multiplayer_snake.shared.common import pygame, Logger, hisock
+from multiplayer_snake.client.states.state import BaseState, update_state
 
 ### States ###
 class GameState(BaseState):
@@ -19,3 +19,6 @@ class GameState(BaseState):
 
     def handle_event(self, event: pygame.event.EventType):
         ...
+
+    def close(self):
+        self.client.close(emit_leave=True)

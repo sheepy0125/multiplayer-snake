@@ -13,6 +13,7 @@ from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.pygame_tools import GlobalPygame
 from multiplayer_snake.shared.shared_game import BaseSnakePlayer, SharedGame
 from multiplayer_snake.client.states.state import State
+from multiplayer_snake.client.states.state_info import ClientJoinState
 
 CONFIG = parse()
 GUI_CONFIG = CONFIG["gui"]
@@ -63,6 +64,9 @@ class SnakeClientGame:
 
 
 ### Run ###
+State.current = ClientJoinState()
+
+
 def run_pygame_loop():
     for event in pygame.event.get():
         State.current.handle_event(event)

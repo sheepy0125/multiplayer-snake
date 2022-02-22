@@ -12,11 +12,11 @@ import hisock
 import pygame
 import pygame_gui
 from pathlib import Path
+from multiplayer_snake.shared.tools import Logger
 
 # Other imports (must be deleted later)
+import multiplayer_snake.constants as constants
 from os import environ
-import constants
-from multiplayer_snake.shared.tools import Logger
 
 ### Credits ###
 if not "multiplayer_snake_credits" in environ:
@@ -34,4 +34,4 @@ ROOT_PATH: Path = Path(__file__).parent.parent
 DEFAULT_CONFIG_PATH: Path = ROOT_PATH / "config.jsonc"
 
 ### Delete other imports ###
-del environ, constants, Logger
+del environ, constants

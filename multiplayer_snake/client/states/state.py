@@ -6,14 +6,17 @@ Created by sheepy0125
 State handling
 """
 
+### Setup ###
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.pygame_tools import Widget
-from multiplayer_snake.client.states.game import GameState
+from multiplayer_snake.shared.common import Logger, pygame
+
 
 CONFIG = parse()
 GUI_CONFIG = CONFIG["gui"]
 
 
+### Widgets ###
 class ClientWidget(Widget):
     def __init__(self, *args, **kwargs):
         # Colors and stuff
@@ -37,20 +40,7 @@ class ClientWidget(Widget):
             Logger.log(f"Created {self.identifier} widget")
 
 
-class State:
-    """Handles the current state"""
-
-    # current = ClientJoin() # NOSONAR
-    # Testing XXX
-    from multiplayer_snake.shared.common import hisock
-
-    current = GameState(
-        hisock.client.ThreadedHiSockClient(
-            ("192.168.86.67", 6500),
-            name=input("Username: "),
-            group=None,
-        )
-    )
+### States ###
 
 
 class BaseState(Widget):
@@ -88,6 +78,12 @@ class BaseState(Widget):
 
     def handle_event(self, _: pygame.event.Event):
         Logger.warn(f"State {self.identifier} has no event handler")
+
+
+class State:
+    """Handles the current state"""
+
+    current = BaseState()
 
 
 def update_state(state, *args, **kwargs):

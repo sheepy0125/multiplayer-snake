@@ -8,13 +8,15 @@ Client join state code
 
 ### Setup ###
 import multiplayer_snake.constants as constants
+from multiplayer_snake.client.states.state import BaseState, GUI_CONFIG, update_state
+from multiplayer_snake.client.states.state_info import GameState
 from multiplayer_snake.shared.common import Logger
-from multiplayer_snake.client.states.state import BaseState, GUI_CONFIG
 from multiplayer_snake.shared.pygame_tools import Text, Button, GlobalPygame
-from multiplayer_snake.shared.common import pygame_gui, pygame
+from multiplayer_snake.shared.common import pygame_gui, pygame, hisock
+from multiplayer_snake.shared.tools import check_username
 
 ### States ###
-class ClientJoin(BaseState):
+class ClientJoinState(BaseState):
     def __init__(self):
         super().__init__(identifier="client join")
 
@@ -88,7 +90,9 @@ class ClientJoin(BaseState):
     def join(self):
         Logger.log("Joining game")
         username = self.text_inputs["username"].text
-        server_ip = self.text_inputs["server"].text
+        # server_ip = self.text_inputs["server"].text
+        # TESTING XXX
+        server_ip = "192.168.86.67:6500"
 
         if not check_username(username):
             Logger.fatal("Invalid username!")
