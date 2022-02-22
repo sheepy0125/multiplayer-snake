@@ -65,9 +65,8 @@ class SnakeClientGame:
 
 ### Pygame States ###
 def update_state(state, *args, **kwargs):
-    """
-    Updates the current state, and sets the next state
-    """
+    """Updates the current state"""
+
     State.current = state(*args, **kwargs)
 
 
@@ -200,7 +199,9 @@ class ClientJoin(BaseState):
         Logger.log(f"Connecting: {username}@{ip} on port {port}")
 
         try:
-            client = hisock.client.HiSockClient((ip, port), name=username, group=None)
+            client = hisock.client.ThreadedHiSockClient(
+                (ip, port), name=username, group=None
+            )
             # New state
             update_state(GameState, client)
         except Exception as e:
@@ -215,12 +216,21 @@ class GameState(BaseState):
         self.client = client
 
     # TODO: everything
+    ...
 
 
 class State:
     """Handles the current state"""
 
-    current = ClientJoin()
+    # current = ClientJoin() # NOSONAR
+    # Testing XXX
+    current = GameState(
+        hisock.client.ThreadedHiSockClient(
+            ("192.168.86.67", 6500),
+            name=input("Username: "),
+            group=None,
+        )
+    )
 
 
 def run_pygame_loop():
