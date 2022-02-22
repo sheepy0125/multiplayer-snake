@@ -1,7 +1,7 @@
 """
 Snake, but multiplayer
 Created by sheepy0125
-14/11/2021
+2021-11-14
 
 Constants!
 """

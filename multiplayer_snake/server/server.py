@@ -1,18 +1,29 @@
 """
 Snake, but multiplayer
 Created by sheepy0125
-14/11/2021
+2021-11-14
 
 Server side code!
 """
 
 ### Setup ###
 import constants
-from common import hisock, pygame, Path
-from tools import Logger, get_public_ip, get_discriminator, check_username
-from pygame_tools import GlobalPygame, Text, Button, CenterRect, Widget
-from config_parser import parse
-from shared_game import BaseSnakePlayer
+from multiplayer_snake.shared.common import hisock, pygame, Path
+from multiplayer_snake.shared.tools import (
+    Logger,
+    get_public_ip,
+    get_discriminator,
+    check_username,
+)
+from multiplayer_snake.shared.pygame_tools import (
+    GlobalPygame,
+    Text,
+    Button,
+    CenterRect,
+    Widget,
+)
+from multiplayer_snake.shared.config_parser import parse
+from multiplayer_snake.shared.shared_game import BaseSnakePlayer
 from time import time
 from datetime import timedelta
 

@@ -1,7 +1,9 @@
 """
-Tools for Some Platformer Game
+Snake, but multiplayer
 Created by sheepy0125
-02/10/2021
+2021-10-02
+
+Tools
 """
 
 ### Setup ###

@@ -18,31 +18,6 @@ Functions
 Use type hinting (using the new pipe for Union[] is okay)
 Use docstrings if the function is "complex"
 
-Structure for imports
-TOP - anything that is using the `import ___` syntax
-hisock
-pygame
-MIDDLE - local files (files in src)
-common.py
-constants.py
-tools.py
-config_parser.py
-entity.py
-world.py
-server.py
-client.py
-shared_game.py
-BOTTOM - other packages
-time
-tkinter
-os
-pathlib
-When importing imports from other files,
-use this same structure
-When importing through the `from ___ import ___`, import 
-globals and constants, then other imports, then classes, 
-then functions, then anything else
-
 Other
 Follow PEP8 (use the black formatter with line length of 89)
 Follow PEP20 (whoops)

@@ -1,7 +1,7 @@
 """
 Snake, but multiplayer
 Created by sheepy0125
-14/11/2021
+2021-11-14
 
 Config parser!
 """
@@ -9,8 +9,7 @@ Config parser!
 ### Setup ###
 from jsonc_parser.parser import JsoncParser
 from jsonc_parser.errors import FileError, ParserError
-from common import DEFAULT_CONFIG_PATH, Path
-from tools import Logger
+from multiplayer_snake.shared.common import DEFAULT_CONFIG_PATH, Path, Logger
 
 
 ### Caching ###

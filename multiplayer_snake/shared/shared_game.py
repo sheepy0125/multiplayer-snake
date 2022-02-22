@@ -1,14 +1,14 @@
 """
 Snake, but multiplayer
 Created by sheepy0125
-16/11/2021
+2021-11-16
 
 Shared game code
 """
 
 ### Setup ###
-from tools import Logger
-from config_parser import parse
+from multiplayer_snake.shared.common import Logger
+from multiplayer_snake.shared.config_parser import parse
 
 CONFIG: dict = parse()
 

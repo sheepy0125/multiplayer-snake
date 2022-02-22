@@ -1,7 +1,7 @@
 """
 Snake, but multiplayer
 Created by sheepy0125
-14/11/2021
+2021-11-14
 
 Common (shared) code!
 """
@@ -10,12 +10,13 @@ Common (shared) code!
 # Global imports
 import hisock
 import pygame
+import pygame_gui
 from pathlib import Path
 
 # Other imports (must be deleted later)
 from os import environ
 import constants
-from tools import Logger
+from multiplayer_snake.shared.tools import Logger
 
 ### Credits ###
 if not "multiplayer_snake_credits" in environ:

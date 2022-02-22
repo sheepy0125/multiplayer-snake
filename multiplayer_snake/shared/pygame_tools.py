@@ -1,18 +1,17 @@
 """
 Snake, but multiplayer
 Created by sheepy0125
-14/11/2021
+2021-11-14
 
 Pygame tools!
 """
 
 ### Setup ###
-from common import pygame
-from tools import Logger
+from multiplayer_snake.shared.common import pygame, Logger
 
 pygame.font.init()
 
-
+### Classes ###
 class GlobalPygame:
     """Window surface object but it's global now!"""
 
@@ -180,3 +179,7 @@ class Widget:
             border_radius=10,
             width=2,
         )
+
+    @staticmethod
+    def close():
+        ...

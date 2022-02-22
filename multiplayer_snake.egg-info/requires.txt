@@ -1,0 +1,4 @@
+hisock>=1.2.0
+pygame>=1.9.6
+pygame_gui>=0.5.6
+jsonc_parser>=1.0.0
