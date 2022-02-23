@@ -3,7 +3,7 @@ Snake, but multiplayer
 Created by sheepy0125
 2021-11-16
 
-State handling informations
+State handling information
 """
 
 ### Setup ###

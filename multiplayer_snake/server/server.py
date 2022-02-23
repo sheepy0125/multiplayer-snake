@@ -19,6 +19,7 @@ from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.shared_game import BaseSnakePlayer
 from time import time
 from datetime import timedelta
+from os import _exit as force_exit
 
 CONFIG: dict = parse()
 GUI_CONFIG: dict = CONFIG["gui"]
@@ -293,7 +294,9 @@ class ServerStatusWidget(ServerWidget):
 ### Main ###
 server_win = ServerWindow()
 server.start()
-while True:
+
+
+def run_pygame_loop():
     # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -322,3 +325,29 @@ while True:
     # Draw
     server_win.draw()
     pygame.display.flip()
+
+
+def run():
+    while True:
+        try:
+            run_pygame_loop()
+        except KeyboardInterrupt:
+            print("\nExiting gracefully...")
+            pygame.quit()
+            return
+        except Exception as e:
+            Logger.log_error(e)
+            return
+
+
+if __name__ != "__main__":
+    exit()
+
+run()
+
+try:
+    server.disconnect_all_clients(force=False)
+    server.close()
+except KeyboardInterrupt:
+    print("\nForcing!")
+    force_exit(1)

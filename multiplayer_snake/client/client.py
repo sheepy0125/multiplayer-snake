@@ -8,7 +8,7 @@ Client game code
 
 ### Setup ###
 import multiplayer_snake.constants as constants
-from multiplayer_snake.shared.common import hisock, pygame
+from multiplayer_snake.shared.common import hisock, pygame, Logger
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.pygame_tools import GlobalPygame
 from multiplayer_snake.shared.shared_game import BaseSnakePlayer, SharedGame
@@ -83,17 +83,13 @@ def run():
     while True:
         try:
             run_pygame_loop()
-        except BrokenPipeError:
-            # This is raised when the server is closed
-            print("\nThe server has stopped, exiting!")
-            raise
         except (KeyboardInterrupt, SystemExit):
             print("\nExiting gracefully", end="... ")
             State.current.close()
-            raise
-        # except Exception as error:
-        #   Logger.log_error(error)
-        #   break
+            return
+        except Exception as error:
+            Logger.log_error(error)
+            return
 
 
 if __name__ == "__main__":
