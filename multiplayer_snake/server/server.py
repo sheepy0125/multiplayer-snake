@@ -111,19 +111,18 @@ def on_client_join(client_data):
         server.disconnect_client(client_data)
 
 
-@server.on("connect_to_game")
-def on_client_connect_to_game(client_data: dict, username: str):
-    success = snake_game.add_player(ip=client_data["ip"], username=username)
-
-    if success:
-        Logger.log(
-            f"Client with IP {hisock.iptup_to_str(client_data['ip'])} connected to the"
-            f" server with username {username}."
-        )
-
-    server.send_client(
-        client_data["ip"], "connect_to_game_response", {"success": success}
+@server.on("leave")
+def on_client_leave(client_data):
+    Logger.log(
+        f"{client_data.name} ({hisock.iptup_to_str(client_data.ip)})"
+        " disconnected from the server"
     )
+
+    # Remove player
+    for player in snake_game.players_online:
+        if player.identifier == client_data.name:
+            snake_game.players_online.remove(player)
+            break
 
 
 class ServerWindow:

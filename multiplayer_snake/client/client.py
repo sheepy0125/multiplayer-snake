@@ -83,7 +83,7 @@ def run():
     while True:
         try:
             run_pygame_loop()
-        except (KeyboardInterrupt, SystemExit):
+        except KeyboardInterrupt:
             print("\nExiting gracefully", end="... ")
             State.current.close()
             return

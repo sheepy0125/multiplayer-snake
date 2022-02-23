@@ -73,14 +73,13 @@ class ClientJoinState(BaseState):
 
         self.gui_manager.draw_ui(GlobalPygame.window)
 
+        # Handle button click
+        if self.join_button.check_pressed():
+            self.join()
+
     def handle_event(self, event: pygame.event.EventType):
         self.gui_manager.process_events(event)
         self.focus_current_textbox()
-        # Handle button click
-        if event.type == pygame.MOUSEBUTTONUP:
-            mouse_pos = pygame.mouse.get_pos()
-            if self.join_button.button_rect.collidepoint(*mouse_pos):
-                self.join()
 
     def update(self):
         self.gui_manager.update(GlobalPygame.delta_time)

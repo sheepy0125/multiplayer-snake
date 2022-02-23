@@ -70,7 +70,7 @@ class Button:
         cooldown_over = self.button_cooldown_time_over <= pygame.time.get_ticks()
 
         if (
-            self.button_rect.rect.collidepoint(mouse_pos)
+            self.button_rect.collidepoint(mouse_pos)
             and mouse_click[0]
             and cooldown_over
         ):

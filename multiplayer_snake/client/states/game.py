@@ -20,5 +20,8 @@ class GameState(BaseState):
     def handle_event(self, event: pygame.event.EventType):
         ...
 
+    def update(self):
+        ...
+
     def close(self):
         self.client.close(emit_leave=True)
