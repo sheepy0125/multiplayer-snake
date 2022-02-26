@@ -93,6 +93,20 @@ class WrappedText:
 
         self.ending_y_pos = self.texts[-1].text_rect.bottom
 
+    def scroll(self, min_y: int, scroll_by: int):
+        """Scroll the text. If min_y is reached, the text will be deleted"""
+
+        text_idxs_deleted = []  # Indexes of texts that need to be deleted
+        for idx, text in enumerate(self.texts):
+            text.text_rect.y -= scroll_by
+            if text.text_rect.y < min_y:
+                text_idxs_deleted.append(idx)
+
+        for idx in sorted(text_idxs_deleted, reverse=True):
+            del self.texts[idx]
+
+        self.ending_y_pos -= scroll_by
+
     def draw(self):
         for text in self.texts:
             text.draw()

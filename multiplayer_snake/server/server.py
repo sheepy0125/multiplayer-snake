@@ -421,10 +421,12 @@ class ServerStatusMesagesWidget(ServerWidget):
     def add_text(self, text: str):
         # Add wrapping text
         if len(self.text_widgets["mutable"]) == 0:
-            y_offset = 0
+            y_offset = self.padding
         else:
-            y_offset = self.text_widgets["mutable"][-1].ending_y_pos - (
-                self.padding * 2
+            y_offset = (
+                self.text_widgets["mutable"][-1].ending_y_pos
+                - self.padding
+                - len(self.text_widgets["mutable"])
             )
 
         text_wrapped = WrappedText(
@@ -432,9 +434,7 @@ class ServerStatusMesagesWidget(ServerWidget):
             max_chars=80,
             pos=(
                 self.pos[0] + self.size[0] // 2,
-                self.pos[1]
-                + self.padding
-                + (len(self.text_widgets["mutable"]) + 1 * self.text_size),
+                self.pos[1] + (len(self.text_widgets["mutable"]) + self.text_size),
             ),
             y_offset=y_offset,
             text_size=self.text_size,
@@ -449,6 +449,40 @@ class ServerStatusMesagesWidget(ServerWidget):
         for text_list in self.text_widgets.values():
             for text in text_list:
                 text.draw()
+
+    def scroll(self, scroll_by: int):
+        for text in self.text_widgets["mutable"]:
+            text.scroll(
+                min_y=self.text_widgets["mutable"][0].texts[0].text_rect.top,
+                scroll_by=scroll_by,
+            )
+
+    @property
+    def needs_scroll(self):
+        """Implies there is already a message"""
+
+        return self.text_widgets["mutable"][-1].ending_y_pos >= (
+            self.size[1] + self.pos[1]
+        )
+
+    @property
+    def scroll_by(self):
+        """Implies there is already a message"""
+
+        return self.text_widgets["mutable"][-1].ending_y_pos - (
+            self.size[1] + self.pos[1]
+        )
+
+
+### Functions ###
+def log_message(text: str):
+    """Log a message to the server status messages widget"""
+
+    server_win.widgets[2].add_text(text)
+
+    # Scrolling
+    if server_win.widgets[2].needs_scroll:
+        server_win.widgets[2].scroll(scroll_by=server_win.widgets[2].scroll_by)
 
 
 ### Main ###
@@ -479,7 +513,7 @@ def run_pygame_loop():
                     player.reset()
 
             elif event.key == pygame.K_a:
-                server_win.widgets[2].add_text("Testing!" * 100)
+                log_message("Testing!" * 100)
 
     # Update
     server_win.update()
