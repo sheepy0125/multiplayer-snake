@@ -294,7 +294,7 @@ class PlayersListWidget(ServerWidget):
 
         self.text_widgets: dict = {
             "immutable": [
-                self.create_text("Players online", offset=0),
+                self.create_text("Players online", offset=0, text_size=16),
             ],
             "mutable": [],
         }
@@ -354,7 +354,7 @@ class ServerInfoWidget(ServerWidget):
 
         self.text_widgets: dict = {
             "immutable": [
-                self.create_text("Server status", offset=0),
+                self.create_text("Server status", offset=0, text_size=16),
                 self.create_text(
                     f"Server local IP: {hisock.utils.get_local_ip()}", offset=2
                 ),
@@ -412,7 +412,7 @@ class ServerStatusMesagesWidget(ServerWidget):
         )
 
         self.text_widgets: dict = {
-            "immutable": [self.create_text("Server logs", offset=0)],
+            "immutable": [self.create_text("Server logs", offset=0, text_size=16)],
             "mutable": [],
         }
         self.update()
@@ -433,14 +433,15 @@ class ServerStatusMesagesWidget(ServerWidget):
 
         text_wrapped = WrappedText(
             text=text,
-            max_chars=80,
+            max_chars=90,
             pos=(
-                self.pos[0] + self.size[0] // 2,
+                self.pos[0] + self.padding,
                 self.pos[1] + (len(self.text_widgets["mutable"]) + self.text_size),
             ),
             y_offset=y_offset,
             text_size=self.text_size,
             text_color=self.text_color,
+            center=False,
         )
 
         self.text_widgets["mutable"].append(text_wrapped)
@@ -487,7 +488,12 @@ class StdOutOverride:
 
     def write(self, text: str):
         self.file.write(text)
+
         if text != "\n":
+            # Strip color
+            for ansi_color in Logger.colors.values():
+                text = text.replace(ansi_color, "")
+
             self.log_to_widget(text)
 
     def flush(self):
@@ -513,24 +519,6 @@ def run_pygame_loop():
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False
-
-        if event.type == pygame.KEYDOWN:
-            # Debug!!!
-            if event.key == pygame.K_SPACE:
-                snake_game.players_online.append(
-                    ServerSnakePlayer(
-                        default_pos=(0, 0),
-                        default_length=1,
-                        identifier="Testing!",
-                        ip_address=("192.168.86.60", 64012),
-                    )
-                )
-
-            elif event.key == pygame.K_r:
-                for player in snake_game.players_online:
-                    player.reset()
-
-            Logger.log(f"{chr(event.key) if event.key < 128 else event.key} pressed")
 
     # Update
     server_win.update()

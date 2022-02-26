@@ -7,7 +7,11 @@ Pygame tools!
 """
 
 ### Setup ###
-from multiplayer_snake.shared.common import pygame, Logger
+from multiplayer_snake.shared.common import pygame, Logger, ROOT_PATH
+from multiplayer_snake.shared.config_parser import parse
+
+CONFIG = parse()
+FONT_PATH = ROOT_PATH / CONFIG["font_path"]
 
 pygame.font.init()
 
@@ -30,18 +34,27 @@ class Text:
     """Display text"""
 
     def __init__(
-        self, text_to_display: str, pos: tuple, size: int, color: str | tuple = "white"
+        self,
+        text_to_display: str,
+        pos: tuple,
+        size: int,
+        color: str | tuple = "white",
+        center: bool = True,
     ):
         self.pos = pos
         self.text_to_display = text_to_display
         self.size = size
         self.color = color
+        self.center = center
 
         # Create text
-        self.text_surf = pygame.font.SysFont("Arial", size).render(
+        self.text_surf = pygame.font.Font(FONT_PATH, size).render(
             text_to_display, True, color
         )
-        self.text_rect = self.text_surf.get_rect(center=pos)
+        if center:
+            self.text_rect = self.text_surf.get_rect(center=pos)
+        else:
+            self.text_rect = self.text_surf.get_rect(left=pos[0], top=pos[1])
 
     def draw(self):
         GlobalPygame.window.blit(self.text_surf, self.text_rect)
@@ -58,6 +71,7 @@ class WrappedText:
         y_offset: int,
         text_color: str | tuple = "white",
         text_size: int = 20,
+        center: bool = False,
     ):
         self.lines = []
 
@@ -67,6 +81,7 @@ class WrappedText:
         self.y_offset = y_offset
         self.text_color = text_color
         self.text_size = text_size
+        self.center = center
 
         # Split text into lines
         self.lines = self.text.split("\n")
@@ -86,8 +101,9 @@ class WrappedText:
                 Text(
                     line,
                     pos=(self.pos[0], 0),
-                    size=text_size,
-                    color=text_color,
+                    size=self.text_size,
+                    color=self.text_color,
+                    center=self.center,
                 )
             )
             self.texts[-1].text_rect.y = self.pos[1] + (idx * text_size) + y_offset
