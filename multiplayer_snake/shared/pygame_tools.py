@@ -47,6 +47,57 @@ class Text:
         GlobalPygame.window.blit(self.text_surf, self.text_rect)
 
 
+class WrappedText:
+    """Text that can wrap"""
+
+    def __init__(
+        self,
+        text: str,
+        max_chars: int,
+        pos: tuple,
+        y_offset: int,
+        text_color: str | tuple = "white",
+        text_size: int = 20,
+    ):
+        self.lines = []
+
+        self.text = text
+        self.max_chars = max_chars
+        self.pos = pos
+        self.y_offset = y_offset
+        self.text_color = text_color
+        self.text_size = text_size
+
+        # Split text into lines
+        self.lines = self.text.split("\n")
+        new_lines = []
+        for line in self.lines:
+            line = [
+                line[i : i + self.max_chars]
+                for i in range(0, len(line), self.max_chars)
+            ]
+            new_lines += line
+        self.lines = new_lines
+
+        # Create texts
+        self.texts = []
+        for idx, line in enumerate(self.lines):
+            self.texts.append(
+                Text(
+                    line,
+                    pos=(self.pos[0], self.pos[1] + (idx * text_size) + y_offset),
+                    size=text_size,
+                    color=text_color,
+                )
+            )
+
+        self.ending_y_pos = self.texts[-1].text_rect.bottom
+
+    def draw(self):
+        for text in self.texts:
+            text.draw()
+
+
 class Button:
     """Display a button for Pygame"""
 

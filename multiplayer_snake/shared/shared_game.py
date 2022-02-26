@@ -21,15 +21,15 @@ class SharedGame:
 
     grid_snap: int = 10
     window_width: int = 800
-    window_height: int = 600
+    window_height: int = 800
     height: int = window_width // grid_snap
-    width: int = window_height // grid_snap
+    width: int = window_height // grid_snap - 20
 
 
 class BaseSnakePlayer:
     """
     Since each the server and the client will have a snake player, we will
-    use inheritence from this class to make the code specific to what end
+    use inheritance from this class to make the code specific to what end
     this is on.
     The inherited class must have a method called `snake_died` which will
     deal with whatever needs to happen when the snake dies.
@@ -40,24 +40,17 @@ class BaseSnakePlayer:
         self._init_args = args
         self._init_kwargs = kwargs
 
-        self.direction_velocity_enum = {
-            "up": (0, -1),
-            "down": (0, 1),
-            "left": (-1, 0),
-            "right": (1, 0),
-        }
-
     def _reset(
         self,
-        default_pos: tuple,
+        default_position: tuple = (0, 0),
         default_length: int = 1,
         identifier: int | str = "unknown snake",
     ):
         self.identifier = identifier
         self.alive: bool = True
-        self.tail: list[tuple] = [default_pos]  # List of positions
-        self.tail_length = default_length
-        self.pos = default_pos
+        self.tail: list[tuple] = [default_position]  # List of positions
+        self.length = default_length
+        self.pos = default_position
         self.direction: str = "right"
 
         if CONFIG["verbose"]:
@@ -95,11 +88,8 @@ class BaseSnakePlayer:
                 self.snake_died(reason="collided with other snake")
 
     def snake_died(self, reason: str = "unknown"):
-        if self == BaseSnakePlayer:  # If not derived at all
-            Logger.warn(
-                "This shouldn't be called! Supposed to use inheritence from this class  "
-                "to make the code specific to what end this is on (client or server)"
-            )
+        if isinstance(self, BaseSnakePlayer):  # If not derived at all
+            Logger.warn(f"Snake {self.identifier} has no snake_died handler!")
 
         Logger.log(f"Snake {self.identifier} died because {reason = }")
         self.alive = False

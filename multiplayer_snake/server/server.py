@@ -14,9 +14,14 @@ from multiplayer_snake.shared.tools import (
     get_discriminator,
     check_username,
 )
-from multiplayer_snake.shared.pygame_tools import GlobalPygame, Text, Widget
+from multiplayer_snake.shared.pygame_tools import (
+    GlobalPygame,
+    Text,
+    WrappedText,
+    Widget,
+)
 from multiplayer_snake.shared.config_parser import parse
-from multiplayer_snake.shared.shared_game import BaseSnakePlayer
+from multiplayer_snake.shared.shared_game import BaseSnakePlayer, SharedGame
 from time import time
 from datetime import timedelta
 from os import _exit as force_exit
@@ -37,27 +42,85 @@ server = hisock.server.ThreadedHiSockServer(
 )
 
 ### Classes ###
+class GameAlreadyRunningError(Exception):
+    ...
+
+
 class SnakeGame:
     """Handles everything that will be sent to the clients"""
 
-    def __init__(self, num_players: int = 2):
-        """Please note, `num_players` currently does nothing"""
-
+    def __init__(self):
         self.num_players = 2
-        self.players_online: list[BaseSnakePlayer] = []
-        self.round: int = 0  # Will be set to 1 when the game is started
-        self.uptime: int = 0  # Will only be integers (not ms)
-        self.start_time: int = 0  # This'll be the UNIX timestamp when the game started
-        self.uptime_changed: bool = False  # LOL
+        self.players_online: list[ServerSnakePlayer] = []
+        self.round: int = 0
+        self.uptime: int = 0  # Seconds
+        self.uptime_changed: bool = False  # For the GUI
+        self.running = False
+        self.start_time: int = 0  # Unix timestamp
+        self.last_update_time: float = 0.0  # Unix timestamp
+        self.time_next_tick: float = 0.0  # Milliseconds
+
+        self.default_spots = [
+            (0, round(((SharedGame.height / 2) - 1), ndigits=1)),
+            (SharedGame.width - 1, round(((SharedGame.height / 2) - 1), ndigits=1)),
+        ]
+
+    def get_data(self) -> dict:
+        """Get data for updating the clients"""
+
+        # Get the data
+        return {
+            "players": [player.get_data() for player in self.players_online],
+            "round": self.round,
+            "uptime": self.uptime,
+            "uptime_changed": self.uptime_changed,
+        }
 
     def update(self):
         """Updates the game (must be started first)"""
 
+        original_uptime = self.uptime
         self.uptime = int(time() - self.start_time)
+        self.uptime_changed = original_uptime == self.uptime
+
+        # Is it time for the next tick?
+        time_next_tick = SERVER_CONFIG["time_until_update"] - (
+            time() - self.last_update_time
+        )
+        self.time_next_tick = time_next_tick
+        if time_next_tick > 0:
+            return
+
+        print("next tick", time_next_tick, self.last_update_time)
+        self.last_update_time += SERVER_CONFIG["time_until_update"]
 
         # Update players
         for player in self.players_online:
             player.update()
+
+        # Update clients
+        update_clients_with_data()
+
+    def run(self):
+        """Run everything. Should be called every frame"""
+
+        if not self.running:
+            return
+
+        self.update()
+
+    def start(self):
+        """Start the game"""
+
+        if self.running:
+            raise GameAlreadyRunningError
+
+        self.running = True
+        self.start_time = int(time())
+        self.last_update_time = time()
+
+        # Alert everyone that the game has started
+        server.send_all_clients("game_started")
 
     def add_player(self, ip_address: str, username: str) -> bool:
         """Adds a player to the game, returns if valid"""
@@ -71,14 +134,22 @@ class SnakeGame:
             return False
 
         # Everything seems fine, add the player
+
+        # Get the default position
+        default_pos = self.default_spots[len(self.players_online)]
+
         self.players_online.append(
             ServerSnakePlayer(
-                default_pos=(0, 0),
+                default_pos=default_pos,
                 default_length=1,
                 identifier=f"{username}#{get_discriminator()}",
                 ip_address=ip_address,
             )
         )
+
+    def snake_died(self, snake_identifier: str):
+        # Game over
+        server.send_all_clients("game_over", f"{snake_identifier} died")
 
 
 snake_game = SnakeGame()
@@ -88,10 +159,21 @@ class ServerSnakePlayer(BaseSnakePlayer):
     """Server side snake player"""
 
     def _reset(self, ip_address: str, *args, **kwargs):
-        """BaseSnakePlayer reset, but it has more (oh no)"""
+        """BaseSnakePlayer reset, but it has more stuff"""
 
         self.ip_address = ip_address
         super()._reset(*args, **kwargs)
+
+    def get_data(self) -> dict:
+        """Get data for updating the client"""
+
+        return {
+            "identifier": self.identifier,
+            "ip_address": self.ip_address,
+            "pos": self.pos,
+            "length": self.length,
+            "direction": self.direction,
+        }
 
     def snake_died(self, reason: str = "unknown"):
         super().snake_died(reason)
@@ -125,6 +207,12 @@ def on_client_leave(client_data):
             break
 
 
+@server.on("request_data")
+def update_clients_with_data():
+    server.send_all_clients("update_data", snake_game.get_data())
+
+
+### Widgets / GUI ###
 class ServerWindow:
     """Handles all the widgets inside the window"""
 
@@ -140,7 +228,11 @@ class ServerWindow:
         if CONFIG["verbose"]:
             Logger.log("Created widgets")
 
-        widgets: list = [PlayersListWidget(), ServerStatusWidget()]
+        widgets: list = [
+            PlayersListWidget(),
+            ServerInfoWidget(),
+            ServerStatusMesagesWidget(),
+        ]
 
         return widgets
 
@@ -245,15 +337,15 @@ class PlayersListWidget(ServerWidget):
                 text.draw()
 
 
-class ServerStatusWidget(ServerWidget):
-    """Widget for telling stats about the server"""
+class ServerInfoWidget(ServerWidget):
+    """Widget for telling information about the server"""
 
     def __init__(self):
         super().__init__(
             pos=(GUI_CONFIG["widget_padding"], GUI_CONFIG["window_size"][1] // 2),
             size=(
                 GUI_CONFIG["window_size"][0] // 4 * 1,
-                GUI_CONFIG["window_size"][1] // 2 - (GUI_CONFIG["widget_padding"] * 2),
+                GUI_CONFIG["window_size"][1] // 2 - GUI_CONFIG["widget_padding"],
             ),
             identifier="server status",
         )
@@ -267,20 +359,89 @@ class ServerStatusWidget(ServerWidget):
                 self.create_text(f"Server public IP: {get_public_ip()}", offset=3),
                 self.create_text(f"Server port: {CONFIG['server']['port']}", offset=4),
             ],
-            "mutable": [None],
+            "mutable": [None, None],
         }
         self.update(do_check=False)
 
     def update(self, do_check: bool = True):
         if (not do_check) or snake_game.uptime_changed:
             uptime_text_widget = self.create_text(
-                f"Uptime: {str(timedelta(snake_game.uptime))!s}", offset=5
+                f"Uptime: {str(timedelta(seconds=snake_game.uptime))!s}", offset=5
             )
-            self.text_widgets["mutable"] = [uptime_text_widget]
+            self.text_widgets["mutable"][0] = uptime_text_widget
             if CONFIG["verbose"]:
                 Logger.log(f"Created text widget for server uptime")
 
             self.text_widgets["mutable"][0] = uptime_text_widget
+
+        time_next_tick_text = self.create_text(
+            f"Time until next tick: {str(round(snake_game.time_next_tick, 1)).zfill(3)} ms",
+            offset=6,
+        )
+        self.text_widgets["mutable"][1] = time_next_tick_text
+
+    def draw(self):
+        super().draw()
+
+        for text_list in self.text_widgets.values():
+            for text in text_list:
+                text.draw()
+
+
+class ServerStatusMesagesWidget(ServerWidget):
+    """
+    Widget for showing status messages about the current game,
+    not just stats about the server.
+    """
+
+    def __init__(self):
+        super().__init__(
+            pos=(
+                (GUI_CONFIG["widget_padding"] * 2)
+                + (GUI_CONFIG["window_size"][0] // 4),
+                GUI_CONFIG["widget_padding"],
+            ),
+            size=(
+                (GUI_CONFIG["window_size"][0] // 4 * 3)
+                - (GUI_CONFIG["widget_padding"] * 3),
+                GUI_CONFIG["window_size"][1] - (GUI_CONFIG["widget_padding"] * 2),
+            ),
+            identifier="server status messages widget",
+        )
+
+        self.text_widgets: dict = {
+            "immutable": [self.create_text("Server logs", offset=0)],
+            "mutable": [],
+        }
+        self.update()
+
+    def update(self):
+        ...
+
+    def add_text(self, text: str):
+        # Add wrapping text
+        if len(self.text_widgets["mutable"]) == 0:
+            y_offset = 0
+        else:
+            y_offset = self.text_widgets["mutable"][-1].ending_y_pos - (
+                self.padding * 2
+            )
+
+        text_wrapped = WrappedText(
+            text=text,
+            max_chars=80,
+            pos=(
+                self.pos[0] + self.size[0] // 2,
+                self.pos[1]
+                + self.padding
+                + (len(self.text_widgets["mutable"]) + 1 * self.text_size),
+            ),
+            y_offset=y_offset,
+            text_size=self.text_size,
+            text_color=self.text_color,
+        )
+
+        self.text_widgets["mutable"].append(text_wrapped)
 
     def draw(self):
         super().draw()
@@ -299,8 +460,7 @@ def run_pygame_loop():
     # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            pygame.quit()
-            exit(0)  # TODO: add proper exit
+            return False
 
         if event.type == pygame.KEYDOWN:
             # Debug!!!
@@ -318,6 +478,9 @@ def run_pygame_loop():
                 for player in snake_game.players_online:
                     player.reset()
 
+            elif event.key == pygame.K_a:
+                server_win.widgets[2].add_text("Testing!" * 100)
+
     # Update
     server_win.update()
 
@@ -325,18 +488,23 @@ def run_pygame_loop():
     server_win.draw()
     pygame.display.flip()
 
+    return True
+
 
 def run():
     while True:
         try:
-            run_pygame_loop()
+            if not run_pygame_loop():
+                # Request to exit
+                return pygame.quit()
+            snake_game.run()
         except KeyboardInterrupt:
             print("\nExiting gracefully...")
             pygame.quit()
             return
-        except Exception as e:
-            Logger.log_error(e)
-            return
+        # except Exception as e:
+        # Logger.log_error(e)
+        # return
 
 
 if __name__ != "__main__":
