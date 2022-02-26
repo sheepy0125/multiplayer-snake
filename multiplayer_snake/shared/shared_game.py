@@ -42,15 +42,15 @@ class BaseSnakePlayer:
 
     def _reset(
         self,
-        default_position: tuple = (0, 0),
+        default_pos: tuple = (0, 0),
         default_length: int = 1,
         identifier: int | str = "unknown snake",
     ):
         self.identifier = identifier
         self.alive: bool = True
-        self.tail: list[tuple] = [default_position]  # List of positions
+        self.tail: list[tuple] = [default_pos]  # List of positions
         self.length = default_length
-        self.pos = default_position
+        self.pos = default_pos
         self.direction: str = "right"
 
         if CONFIG["verbose"]:

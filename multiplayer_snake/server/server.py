@@ -25,6 +25,8 @@ from multiplayer_snake.shared.shared_game import BaseSnakePlayer, SharedGame
 from time import time
 from datetime import timedelta
 from os import _exit as force_exit
+from io import TextIOWrapper
+import sys
 
 CONFIG: dict = parse()
 GUI_CONFIG: dict = CONFIG["gui"]
@@ -478,16 +480,28 @@ class ServerStatusMesagesWidget(ServerWidget):
         )
 
 
-### Functions ###
-def log_message(text: str):
-    """Log a message to the server status messages widget"""
+### Override stdout ###
+class StdOutOverride:
+    def __init__(self, _file: TextIOWrapper):
+        self.file = _file
 
-    server_win.widgets[2].add_text(text)
+    def write(self, text: str):
+        self.file.write(text)
+        if text != "\n":
+            self.log_to_widget(text)
 
-    # Scrolling
-    if server_win.widgets[2].needs_scroll:
-        server_win.widgets[2].scroll(scroll_by=server_win.widgets[2].scroll_by)
+    def flush(self):
+        self.file.flush()
 
+    def log_to_widget(self, text: str):
+        server_win.widgets[2].add_text(text)
+
+        # Scrolling
+        if server_win.widgets[2].needs_scroll:
+            server_win.widgets[2].scroll(scroll_by=server_win.widgets[2].scroll_by)
+
+
+sys.stdout = StdOutOverride(sys.stdout)
 
 ### Main ###
 server_win = ServerWindow()
@@ -508,7 +522,7 @@ def run_pygame_loop():
                         default_pos=(0, 0),
                         default_length=1,
                         identifier="Testing!",
-                        ip_address="192.168.86.60",
+                        ip_address=("192.168.86.60", 64012),
                     )
                 )
 
@@ -516,8 +530,7 @@ def run_pygame_loop():
                 for player in snake_game.players_online:
                     player.reset()
 
-            elif event.key == pygame.K_a:
-                log_message("Testing!" * 100)
+            Logger.log(f"{chr(event.key) if event.key < 128 else event.key} pressed")
 
     # Update
     server_win.update()
@@ -540,15 +553,17 @@ def run():
             print("\nExiting gracefully...")
             pygame.quit()
             return
-        # except Exception as e:
-        # Logger.log_error(e)
-        # return
+        except Exception as e:
+            Logger.log_error(e)
+            return
 
 
 if __name__ != "__main__":
     exit()
 
 run()
+del StdOutOverride
+sys.stdout = sys.__stdout__
 
 try:
     server.disconnect_all_clients(force=False)
