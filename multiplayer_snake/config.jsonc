@@ -3,6 +3,7 @@
 	/* Global config */
 	"verbose": false /* TODO: Logger.verbose or Logger.debug */,
 	"font_path": "terminus.ttf" /* Directory: /multiplayer_snake/ */,
+	"show_public_ip": false,
 
 	/* Server config */
 	"server": {

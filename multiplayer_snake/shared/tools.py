@@ -7,11 +7,14 @@ Tools
 """
 
 ### Setup ###
-import os  # Platform checking for ANSI colors
 from multiplayer_snake.constants import DISALLOWED_CHARS_FOR_USERNAME
+from multiplayer_snake.shared.config_parser import parse
+import os  # Platform checking for ANSI colors
 from time import strftime
 from urllib import request
 from random import randint
+
+CONFIG = parse()
 
 ### Logger ###
 class Logger:
@@ -65,6 +68,9 @@ class Logger:
 ### Get public IP ###
 def get_public_ip() -> str:
     """Get the public IP address"""
+
+    if not CONFIG["show_public_ip"]:
+        return "0.0.0.0"
 
     try:
         req = request.Request("https://icanhazip.com/")
