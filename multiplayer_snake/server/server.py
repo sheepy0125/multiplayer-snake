@@ -425,7 +425,7 @@ class ServerStatusMesagesWidget(ServerWidget):
         else:
             y_offset = (
                 self.text_widgets["mutable"][-1].ending_y_pos
-                - self.padding
+                - (self.padding * 2)
                 - len(self.text_widgets["mutable"])
             )
 
@@ -453,9 +453,13 @@ class ServerStatusMesagesWidget(ServerWidget):
     def scroll(self, scroll_by: int):
         for text in self.text_widgets["mutable"]:
             text.scroll(
-                min_y=self.text_widgets["mutable"][0].texts[0].text_rect.top,
+                min_y=self.text_widgets["immutable"][0].text_rect.bottom,
                 scroll_by=scroll_by,
             )
+
+            # Clean up if no text left
+            # if len(text.texts) == 0:
+            # self.text_widgets["mutable"].pop(0)
 
     @property
     def needs_scroll(self):

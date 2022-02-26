@@ -85,16 +85,17 @@ class WrappedText:
             self.texts.append(
                 Text(
                     line,
-                    pos=(self.pos[0], self.pos[1] + (idx * text_size) + y_offset),
+                    pos=(self.pos[0], 0),
                     size=text_size,
                     color=text_color,
                 )
             )
+            self.texts[-1].text_rect.y = self.pos[1] + (idx * text_size) + y_offset
 
         self.ending_y_pos = self.texts[-1].text_rect.bottom
 
     def scroll(self, min_y: int, scroll_by: int):
-        """Scroll the text. If min_y is reached, the text will be deleted"""
+        """Scroll the text. If :param:`min_y` is reached, the text will be deleted"""
 
         text_idxs_deleted = []  # Indexes of texts that need to be deleted
         for idx, text in enumerate(self.texts):
