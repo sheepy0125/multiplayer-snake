@@ -28,8 +28,8 @@ from os import _exit as force_exit
 from io import TextIOWrapper
 import sys
 
-CONFIG: dict = parse()
-GUI_CONFIG: dict = CONFIG["gui"]
+CONFIG = parse()
+GUI_CONFIG = CONFIG["gui"]
 SERVER_CONFIG = CONFIG["server"]
 
 # Setup pygame

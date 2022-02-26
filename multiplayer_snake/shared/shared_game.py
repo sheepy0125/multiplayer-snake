@@ -10,7 +10,7 @@ Shared game code
 from multiplayer_snake.shared.common import Logger
 from multiplayer_snake.shared.config_parser import parse
 
-CONFIG: dict = parse()
+CONFIG = parse()
 
 ### Classes ###
 class SharedGame:
