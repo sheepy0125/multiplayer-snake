@@ -12,6 +12,7 @@ import os  # Platform checking for ANSI colors
 from time import strftime
 from urllib import request
 from random import randint
+from traceback import format_exc
 
 ### Logger ###
 class Logger:
@@ -59,6 +60,7 @@ class Logger:
     def log_error(error: Exception):
         Logger.fatal(
             f"{type(error).__name__}: {str(error)} (line {error.__traceback__.tb_lineno})"
+            f"\n{format_exc()}\n...\n"
         )
 
 

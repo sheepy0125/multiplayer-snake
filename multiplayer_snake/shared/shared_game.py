@@ -19,11 +19,11 @@ class SharedGame:
     Must be the same between the client and the server!
     """
 
-    grid_snap: int = 10
-    window_width: int = 800
-    window_height: int = 800
-    height: int = window_width // grid_snap
-    width: int = window_height // grid_snap - 20
+    grid_snap = 10
+    window_width = 800
+    window_height = 600
+    height = window_width // grid_snap
+    width = window_height // grid_snap
 
 
 class BaseSnakePlayer:

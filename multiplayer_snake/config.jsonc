@@ -28,8 +28,14 @@
 				"text": [0, 0, 0],
 				"border": [255, 105, 180] /* Pink */
 			},
-			"snek_head": [255, 0, 0],
-			"snek_tail": [255, 128, 128]
+			"grid": {
+				"background": [44, 44, 44],
+				"line": [48, 48, 48]
+			},
+			"snek_one_head": [255, 0, 0],
+			"snek_one_tail": [255, 128, 128],
+			"snek_two_head": [0, 0, 255],
+			"snek_two_tail": [128, 128, 255]
 		}
 	}
 }

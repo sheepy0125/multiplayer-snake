@@ -143,7 +143,7 @@ class Button:
 
         # Cooldown stuff
         self.button_cooldown_time_over = 0
-        self.button_cooldown_time_ms = 100
+        self.button_cooldown_ms = 500
 
     def check_pressed(self) -> bool:
         mouse_pos = pygame.mouse.get_pos()
@@ -157,7 +157,7 @@ class Button:
             and cooldown_over
         ):
             self.button_cooldown_time_over = (
-                pygame.time.get_ticks() + self.button_cooldown_time_ms
+                pygame.time.get_ticks() + self.button_cooldown_ms
             )
 
             return True

@@ -19,6 +19,7 @@ from multiplayer_snake.shared.pygame_tools import (
     Text,
     WrappedText,
     Widget,
+    Button,
 )
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.shared_game import BaseSnakePlayer, SharedGame
@@ -55,6 +56,7 @@ class SnakeGame:
         self.num_players = 2
         self.players_online: list[ServerSnakePlayer] = []
         self.round: int = 0
+        self.frames = 0
         self.uptime: int = 0  # Seconds
         self.uptime_changed: bool = False  # For the GUI
         self.running = False
@@ -93,7 +95,8 @@ class SnakeGame:
         if time_next_tick > 0:
             return
 
-        print("next tick", time_next_tick, self.last_update_time)
+        self.frames += 1
+
         self.last_update_time += SERVER_CONFIG["time_until_update"]
 
         # Update players
@@ -117,12 +120,29 @@ class SnakeGame:
         if self.running:
             raise GameAlreadyRunningError
 
+        Logger.log("Starting game")
+
         self.running = True
         self.start_time = int(time())
         self.last_update_time = time()
 
         # Alert everyone that the game has started
         server.send_all_clients("game_started")
+
+    def stop(self):
+        """Stop the game"""
+
+        if not self.running:
+            return
+
+        Logger.log("Stopping game")
+
+        self.running = False
+
+        # Alert everyone that the game has stopped
+        server.send_all_clients("game_stopped")
+
+        self.__init__()
 
     def add_player(self, ip_address: str, username: str) -> bool:
         """Adds a player to the game, returns if valid"""
@@ -360,9 +380,29 @@ class ServerInfoWidget(ServerWidget):
                 ),
                 self.create_text(f"Server public IP: {get_public_ip()}", offset=3),
                 self.create_text(f"Server port: {CONFIG['server']['port']}", offset=4),
+                Text(
+                    "Start/stop",
+                    pos=(
+                        self.pos[0] + (self.size[0] // 2),
+                        self.pos[1] + self.size[1] - 40,
+                    ),
+                    size=14,
+                    color=self.text_color,
+                    center=True,
+                ),
             ],
-            "mutable": [None, None],
+            "mutable": [self.create_text("")] * 3,
         }
+
+        self.start_button = Button(
+            pos=(
+                self.pos[0] + (self.size[0] // 2),
+                self.pos[1] + self.size[1] - 40,
+            ),
+            size=(self.size[0] // 4 * 3, 50),
+            color="orange",
+        )
+
         self.update(do_check=False)
 
     def update(self, do_check: bool = True):
@@ -371,19 +411,38 @@ class ServerInfoWidget(ServerWidget):
                 f"Uptime: {str(timedelta(seconds=snake_game.uptime))!s}", offset=5
             )
             self.text_widgets["mutable"][0] = uptime_text_widget
-            if CONFIG["verbose"]:
-                Logger.log(f"Created text widget for server uptime")
 
-            self.text_widgets["mutable"][0] = uptime_text_widget
+            frame_count_widget = self.create_text(
+                f"Frames: {snake_game.frames}/"
+                + str(
+                    int(
+                        (
+                            snake_game.uptime
+                            * (1 // CONFIG["server"]["time_until_update"])
+                        )
+                    )
+                ),
+                offset=6,
+            )
+            self.text_widgets["mutable"][1] = frame_count_widget
 
-        time_next_tick_text = self.create_text(
-            f"Time until next tick: {str(round(snake_game.time_next_tick, 1)).zfill(3)} ms",
-            offset=6,
-        )
-        self.text_widgets["mutable"][1] = time_next_tick_text
+        if snake_game.running:
+            time_next_tick_text = self.create_text(
+                f"Time until next frame: {str(round(snake_game.time_next_tick, 1)).zfill(3)} ms",
+                offset=7,
+            )
+            self.text_widgets["mutable"][2] = time_next_tick_text
+
+        if self.start_button.check_pressed():
+            if not snake_game.running:
+                snake_game.start()
+            else:
+                snake_game.stop()
 
     def draw(self):
         super().draw()
+
+        self.start_button.draw()
 
         for text_list in self.text_widgets.values():
             for text in text_list:
@@ -459,10 +518,6 @@ class ServerStatusMesagesWidget(ServerWidget):
                 min_y=self.text_widgets["immutable"][0].text_rect.bottom,
                 scroll_by=scroll_by,
             )
-
-            # Clean up if no text left
-            # if len(text.texts) == 0:
-            # self.text_widgets["mutable"].pop(0)
 
     @property
     def needs_scroll(self):
