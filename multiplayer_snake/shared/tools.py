@@ -57,11 +57,13 @@ class Logger:
         )
 
     @staticmethod
-    def log_error(error: Exception):
-        Logger.fatal(
+    def log_error(error: Exception) -> str:
+        error_message = (
             f"{type(error).__name__}: {str(error)} (line {error.__traceback__.tb_lineno})"
             f"\n{format_exc()}\n...\n"
         )
+        Logger.fatal(error_message)
+        return error_message
 
 
 ### Get public IP ###
@@ -86,7 +88,7 @@ def get_public_ip() -> str:
 def get_discriminator(size: int = 4) -> str:
     """Returns a discriminator of size length"""
 
-    return "".join([f"{randint(0, 10)!s}" for _ in range(size)])
+    return "".join([f"{randint(0, 9)!s}" for _ in range(size)])
 
 
 ### Check username ###

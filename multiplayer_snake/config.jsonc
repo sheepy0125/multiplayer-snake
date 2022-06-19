@@ -8,7 +8,7 @@
 	/* Server config */
 	"server": {
 		"port": 6500,
-		"time_until_update": 0.5
+		"time_until_update": 0.1 /* ms */
 	},
 
 	/* Client config */
@@ -33,9 +33,10 @@
 				"line": [48, 48, 48]
 			},
 			"snek_one_head": [255, 0, 0],
-			"snek_one_tail": [255, 128, 128],
+			"snek_one_tail": [255, 32, 32],
 			"snek_two_head": [0, 0, 255],
-			"snek_two_tail": [128, 128, 255]
+			"snek_two_tail": [32, 32, 255],
+			"food": [231, 16, 8] /* Red */
 		}
 	}
 }

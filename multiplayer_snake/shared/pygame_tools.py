@@ -9,6 +9,7 @@ Pygame tools!
 ### Setup ###
 from multiplayer_snake.shared.common import pygame, Logger, ROOT_PATH
 from multiplayer_snake.shared.config_parser import parse
+from typing import Callable
 
 CONFIG = parse()
 FONT_PATH = ROOT_PATH / CONFIG["font_path"]
@@ -22,7 +23,7 @@ class GlobalPygame:
     window: pygame.Surface | None = None
     clock: pygame.time.Clock = None
     delta_time: float = 0.0
-    fps: int = 15
+    fps: int = 30
 
     @staticmethod
     def update():
@@ -38,7 +39,7 @@ class Text:
         text_to_display: str,
         pos: tuple,
         size: int,
-        color: str | tuple = "white",
+        color: tuple | list | str = "white",
         center: bool = True,
     ):
         self.pos = pos
@@ -132,7 +133,7 @@ class WrappedText:
 class Button:
     """Display a button for Pygame"""
 
-    def __init__(self, pos: tuple, size: tuple, color: str | tuple = "white"):
+    def __init__(self, pos: tuple, size: tuple, color: tuple | list | str = "white"):
         self.button_pos = pos
         self.button_size = size
         self.button_color = color
@@ -175,7 +176,7 @@ class CenterRect(pygame.Rect):
         self,
         pos: tuple,
         size: tuple,
-        color: str | tuple = "white",
+        color: tuple | list | str = "white",
         rounded_corner_radius: int = 0,
     ):
         self.center_pos = pos
@@ -209,9 +210,9 @@ class Widget:
         pos: tuple,
         size: tuple,
         text_size: int,
-        text_color: tuple | list,
-        widget_color: tuple | list,
-        border_color: tuple | list,
+        text_color: tuple | list | str,
+        widget_color: tuple | list | str,
+        border_color: tuple | list | str,
         padding: int,
         identifier: str | int = "unknown widget",
     ):
@@ -265,3 +266,117 @@ class Widget:
     @staticmethod
     def close():
         ...
+
+
+### Dialog widgets ###
+class DialogWidget(Widget):
+    def __init__(
+        self,
+        message: str,
+        text_size: int,
+        center: bool = False,
+        identifier: str = "dialog widget",
+        close: Callable = lambda: None,
+    ):
+        self.close = close
+        self.message = message
+        self.wrapped_text = WrappedText(
+            message,
+            max_chars=95,
+            pos=(0, 0),  # Read below comment
+            y_offset=0,
+            text_color="black",
+            text_size=text_size,
+            center=center,
+        )
+
+        super().__init__(
+            text_size=text_size,
+            widget_color="gray",
+            text_color="black",
+            border_color="black",
+            padding=10,
+            # Don't mind the sus hard-coded values here :)
+            pos=(0, 0),
+            size=(
+                600,
+                (len(self.wrapped_text.lines) * self.wrapped_text.text_size) + 70,
+            ),
+            identifier=identifier,
+        )
+
+        # We need to move the wrapped text to the correct place.
+        # Because it was setup before __init__() could be called, we didn't know the
+        # right place to put it, so we put it to the top left temporarily.
+        for text in self.wrapped_text.texts:
+            text.text_rect.move_ip(*(self.pos[i] + self.padding for i in range(2)))
+
+        for text in self.wrapped_text.texts:
+            text.text_rect.move_ip(
+                (
+                    self.pos[0] + self.padding
+                    if not center
+                    else self.pos[0] + (self.size[0] // 2)
+                ),
+                (
+                    self.pos[1] + self.padding
+                    if not center
+                    else self.pos[1]
+                    + self.padding
+                    - ((len(self.wrapped_text.lines) * text_size) / 2)
+                ),
+            )
+
+        # Draggable variables
+        self.last_mouse_pos = pygame.mouse.get_pos()
+
+        self.ok_button = Button(
+            pos=(self.pos[0] + (self.size[0] // 2), self.pos[1] + self.size[1] - 35),
+            size=(self.size[0] // 4 * 3, 50),
+            color="green",
+        )
+        self.ok_text = Text(
+            "OK",
+            pos=self.ok_button.button_pos,
+            size=16,
+            color="black",
+        )
+
+        self.update()
+
+    def handle_drag(self, current_mouse_pos: tuple):
+        mouse_delta = tuple(
+            (current_mouse_pos[i] - self.last_mouse_pos[i] for i in range(2))
+        )
+        self.rect.move_ip(*mouse_delta)
+
+        # Drag texts
+        for text in self.wrapped_text.texts:
+            text.text_rect.move_ip(*mouse_delta)
+
+        # Drag button
+        self.ok_text.text_rect.move_ip(*mouse_delta)
+        self.ok_button.button_rect.move_ip(*mouse_delta)
+
+    def update(self):
+        # Dragging
+        current_mouse_pos = pygame.mouse.get_pos()
+        mouse_clicked = pygame.mouse.get_pressed()[0]
+        if (
+            current_mouse_pos != self.last_mouse_pos
+            and mouse_clicked
+            and self.rect.collidepoint(current_mouse_pos)
+        ):
+            self.handle_drag(current_mouse_pos)
+        self.last_mouse_pos = current_mouse_pos
+
+        # Button click
+        if self.ok_button.check_pressed():
+            self.close()
+
+    def draw(self):
+        super().draw()
+
+        self.wrapped_text.draw()
+        self.ok_button.draw()
+        self.ok_text.draw()

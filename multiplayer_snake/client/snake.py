@@ -1,4 +1,12 @@
-from multiplayer_snake.shared.common import hisock, pygame
+"""
+Snake, but multiplayer
+Created by sheepy0125
+2022-02-26
+
+Client snake class
+"""
+
+from multiplayer_snake.shared.common import hisock
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.pygame_tools import CenterRect
 from multiplayer_snake.shared.shared_game import BaseSnakePlayer, SharedGame
@@ -8,10 +16,21 @@ GUI_CONFIG = CONFIG["gui"]
 
 
 class ClientSnakePlayer(BaseSnakePlayer):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        *args,
+        head_color: tuple | list | str,
+        tail_color: tuple | list | str,
+        **kwargs
+    ):
         super().__init__(*args, **kwargs)
-        self.tail_color = GUI_CONFIG["colors"]["snek_one_tail"]
-        self.head_color = GUI_CONFIG["colors"]["snek_one_head"]
+        self.head_color = tail_color
+        self.tail_color = head_color
+
+    def update(self, position: tuple, direction: str, tail: list):
+        self.pos = position
+        self.direction = direction
+        self.tail = tail
 
     def draw(self):
         for tail_idx, tail_pos in enumerate(self.tail):
@@ -20,7 +39,16 @@ class ClientSnakePlayer(BaseSnakePlayer):
                 color = self.head_color
 
             CenterRect(
-                tail_pos, (SharedGame.grid_snap,) * 2, color, SharedGame.grid_snap // 5
+                pos=tuple(
+                    [
+                        # Snap to grid
+                        tail_pos[i] * SharedGame.grid_snap
+                        for i in range(2)
+                    ]
+                ),
+                size=(SharedGame.grid_snap,) * 2,
+                color=color,
+                rounded_corner_radius=SharedGame.grid_snap // 5,
             ).draw()
 
 

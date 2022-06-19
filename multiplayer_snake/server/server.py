@@ -7,7 +7,9 @@ Server side code!
 """
 
 ### Setup ###
+from typing import Callable
 import multiplayer_snake.constants as constants
+from multiplayer_snake.shared.pygame_tools import DialogWidget
 from multiplayer_snake.shared.common import hisock, pygame, Logger
 from multiplayer_snake.shared.tools import (
     get_public_ip,
@@ -27,6 +29,7 @@ from time import time
 from datetime import timedelta
 from os import _exit as force_exit
 from io import TextIOWrapper
+from random import randint
 import sys
 
 CONFIG = parse()
@@ -40,12 +43,16 @@ pygame.display.set_caption(f"{constants.__name__} Server (GUI)")
 
 # Setup hisock
 server = hisock.server.ThreadedHiSockServer(
-    (hisock.utils.get_local_ip(), CONFIG["server"]["port"]),
+    ("127.0.0.1", CONFIG["server"]["port"]),
     max_connections=2,
 )
 
 ### Classes ###
 class GameAlreadyRunningError(Exception):
+    ...
+
+
+class TestCrash(Exception):
     ...
 
 
@@ -55,30 +62,56 @@ class SnakeGame:
     def __init__(self):
         self.num_players = 2
         self.players_online: list[ServerSnakePlayer] = []
-        self.round: int = 0
-        self.frames = 0
+
+        self.round = 0
         self.uptime: int = 0  # Seconds
         self.uptime_changed: bool = False  # For the GUI
-        self.running = False
+
+        self._reset()
+
+        self.default_positions = (
+            (0, round(((SharedGame.height / 2) - 1), ndigits=1)),
+            (SharedGame.width - 1, round(((SharedGame.height / 2) - 1), ndigits=1)),
+        )
+        self.default_directions = ("right", "left")
+
+    def _reset(self):
+        self.frames: int = 0
+        self.running: bool = False
         self.start_time: int = 0  # Unix timestamp
         self.last_update_time: float = 0.0  # Unix timestamp
         self.time_next_tick: float = 0.0  # Milliseconds
-
-        self.default_spots = [
-            (0, round(((SharedGame.height / 2) - 1), ndigits=1)),
-            (SharedGame.width - 1, round(((SharedGame.height / 2) - 1), ndigits=1)),
-        ]
+        self.food = []
+        for player in self.players_online:
+            player.reset()
 
     def get_data(self) -> dict:
         """Get data for updating the clients"""
 
         # Get the data
         return {
-            "players": [player.get_data() for player in self.players_online],
+            "players": {
+                player.identifier: player.get_data() for player in self.players_online
+            },
+            "foods": [food.get_data() for food in self.food],
             "round": self.round,
             "uptime": self.uptime,
             "uptime_changed": self.uptime_changed,
         }
+
+    def get_player_idx(self, identifier: str) -> int:
+        """Gets an index for a player with an identifier. Returns -1 if not found."""
+
+        for idx, player in enumerate(self.players_online):
+            if player.identifier == identifier:
+                return idx
+        return -1
+
+    def update_player(self, player_identifier: str, direction: str):
+        """Update a player"""
+
+        player_idx = self.get_player_idx(player_identifier)
+        self.players_online[player_idx].direction = direction
 
     def update(self):
         """Updates the game (must be started first)"""
@@ -92,7 +125,7 @@ class SnakeGame:
             time() - self.last_update_time
         )
         self.time_next_tick = time_next_tick
-        if time_next_tick > 0:
+        if time_next_tick >= 0:
             return
 
         self.frames += 1
@@ -100,8 +133,13 @@ class SnakeGame:
         self.last_update_time += SERVER_CONFIG["time_until_update"]
 
         # Update players
-        for player in self.players_online:
-            player.update()
+        for player_idx, player in enumerate(self.players_online):
+            # Update food
+            for food in self.food:
+                if food.update(player):
+                    player.touched_food()
+
+            player.update(self.players_online[player_idx - 1])
 
         # Update clients
         update_clients_with_data()
@@ -122,56 +160,65 @@ class SnakeGame:
 
         Logger.log("Starting game")
 
+        self.food = [ServerFood(), ServerFood()]
         self.running = True
         self.start_time = int(time())
         self.last_update_time = time()
 
         # Alert everyone that the game has started
-        server.send_all_clients("game_started")
+        server.send_all_clients(
+            "game_started",
+            {"players": [player.identifier for player in self.players_online]},
+        )
 
-    def stop(self):
-        """Stop the game"""
+    def pause(self):
+        """Pause the game"""
 
         if not self.running:
             return
 
-        Logger.log("Stopping game")
-
+        Logger.log("Pausing game")
         self.running = False
 
-        # Alert everyone that the game has stopped
-        server.send_all_clients("game_stopped")
-
-        self.__init__()
+    def stop(self):
+        """Stop the game. Assumes the game has been paused."""
+        self._reset()
 
     def add_player(self, ip_address: str, username: str) -> bool:
         """Adds a player to the game, returns if valid"""
 
         # Too many players already
-        if len(self.players_online) >= self.num_players:
+        if len(self.players_online) > self.num_players:
             return False
 
         # Username isn't good
-        if not check_username(username):
+        # NOTE: The username will have a 4 digit discriminator with a hashtag.
+        # Hashtags aren't allowed except for the discriminator.
+        if not check_username(username[:-5]):
             return False
 
         # Everything seems fine, add the player
 
         # Get the default position
-        default_pos = self.default_spots[len(self.players_online)]
+        default_pos = self.default_positions[len(self.players_online)]
+        default_dir = self.default_directions[len(self.players_online)]
 
         self.players_online.append(
             ServerSnakePlayer(
                 default_pos=default_pos,
+                default_dir=default_dir,
                 default_length=1,
-                identifier=f"{username}#{get_discriminator()}",
+                identifier=username,
                 ip_address=ip_address,
             )
         )
 
-    def snake_died(self, snake_identifier: str):
-        # Game over
-        server.send_all_clients("game_over", f"{snake_identifier} died")
+        return True
+
+    def snake_died(self, identifier: str, reason: str):
+        Logger.log("The game has ended!")
+        server.send_all_clients("game_over", f"{identifier} died because {reason}")
+        self.stop()
 
 
 snake_game = SnakeGame()
@@ -183,8 +230,46 @@ class ServerSnakePlayer(BaseSnakePlayer):
     def _reset(self, ip_address: str, *args, **kwargs):
         """BaseSnakePlayer reset, but it has more stuff"""
 
-        self.ip_address = ip_address
         super()._reset(*args, **kwargs)
+
+        self.ip_address = ip_address
+
+        self.direction_velocity_enum = {
+            "up": (0, -1),
+            "down": (0, 1),
+            "left": (-1, 0),
+            "right": (1, 0),
+        }
+
+    def move(self):
+        # Update position
+        new_pos = [
+            self.pos[dimension]
+            + self.direction_velocity_enum[self.direction][dimension]
+            for dimension in range(2)
+        ]
+        self.pos = new_pos
+
+        self.tail.insert(0, self.pos)
+        if len(self.tail) > self.length:
+            self.tail.pop()
+
+    def collision_checking(self, other_snake_object: "BaseSnakePlayer"):
+        # Check if the snake is out of bounds
+        if (self.pos[0] < 0 or self.pos[0] >= SharedGame.width) or (
+            self.pos[1] < 0 or self.pos[1] >= SharedGame.height
+        ):
+            self.snake_died(reason="out of bounds")
+
+        # Check if the snake is colliding with itself
+        for pos in self.tail[1:]:
+            if pos == self.pos:
+                self.snake_died(reason="collided with self")
+
+        # Check if the snake is colliding with the other snake
+        for pos in other_snake_object.tail:
+            if pos == self.pos:
+                self.snake_died(reason="collided with other snake")
 
     def get_data(self) -> dict:
         """Get data for updating the client"""
@@ -195,11 +280,48 @@ class ServerSnakePlayer(BaseSnakePlayer):
             "pos": self.pos,
             "length": self.length,
             "direction": self.direction,
+            "tail": self.tail,
         }
+
+    def update(self, other_snake_player: BaseSnakePlayer):
+        """Update the player"""
+        self.move()
+        self.collision_checking(other_snake_player)
 
     def snake_died(self, reason: str = "unknown"):
         super().snake_died(reason)
         snake_game.snake_died(identifier=self.identifier, reason=reason)
+
+
+class ServerFood:
+    """Server side food"""
+
+    def __init__(self):
+        self.respawn()
+
+    def respawn(self):
+        """Respawn the food"""
+
+        self.pos = (
+            randint(0, SharedGame.width - 1),
+            randint(0, SharedGame.height - 1),
+        )
+
+    def get_data(self) -> dict:
+        """Get data for updating the clients"""
+
+        return {"pos": self.pos}
+
+    def update(self, player: ServerSnakePlayer):
+        """Update the food. Returns if the player ate the food"""
+
+        # If the food is touched by a snake, respawn it
+        if tuple(map(int, player.pos)) == tuple(map(int, self.pos)):
+            Logger.log(f"{player.identifier} ate food")
+            self.respawn()
+            return True
+
+        return False
 
 
 ### Server handlers ###
@@ -210,9 +332,18 @@ def on_client_join(client_data):
         " connected to the server"
     )
 
-    if not snake_game.add_player(client_data.ip, client_data.name):
+    username = f"{client_data.name}#{get_discriminator()}"
+
+    if not snake_game.add_player(client_data.ip, username):
         # Failed to join, disconnect player
+        Logger.log("Disconnecting player...")
         server.disconnect_client(client_data)
+        return
+
+    server.send_client(client_data, "join_response", {"username": username})
+    server.send_all_clients(
+        "player_connect", [player.get_data() for player in snake_game.players_online]
+    )  # XXX: This is a bit of a hack
 
 
 @server.on("leave")
@@ -231,7 +362,14 @@ def on_client_leave(client_data):
 
 @server.on("request_data")
 def update_clients_with_data():
-    server.send_all_clients("update_data", snake_game.get_data())
+    server.send_all_clients("update", snake_game.get_data())
+
+
+@server.on("update")
+def on_client_update(_, data: dict):
+    player_identifier = data["identifier"]
+    new_direction = data["direction"]
+    snake_game.update_player(player_identifier, new_direction)
 
 
 ### Widgets / GUI ###
@@ -242,6 +380,7 @@ class ServerWindow:
         """No params as this will use CONFIG"""
 
         self.widgets = self.create_widgets()
+        self.dialogs = {"error": None}
 
         if CONFIG["verbose"]:
             Logger.log("Server window created")
@@ -258,11 +397,57 @@ class ServerWindow:
 
         return widgets
 
+    def error_message(self, message: str):
+        """Show an error message"""
+
+        def close_dialog():
+            self.dialogs["error"] = None
+            # Stop everything!
+            raise KeyboardInterrupt
+
+        self.dialogs["error"] = DialogWidget(
+            message, text_size=12, identifier="error dialog", close=close_dialog
+        )
+
+        # Pause the game
+        snake_game.pause()
+
+    def display_dialog(
+        self,
+        identifier: str,
+        message: str,
+        center: bool = False,
+        text_size: int = 12,
+        close: Callable = lambda: None,
+    ):
+        """
+        Displays a dialog. Will be called from a state.
+        .. note::
+           If you want to call error_message, raise an exception.
+        """
+
+        def _close():
+            self.dialogs[identifier] = None
+            close()
+
+        self.dialogs[identifier] = DialogWidget(
+            message,
+            identifier=identifier,
+            text_size=text_size,
+            center=center,
+            close=_close,
+        )
+
     def update(self):
-        """Updates all the widgets"""
+        """Updates all the widgets and dialogs"""
 
         for widget in self.widgets:
             widget.update()
+
+        for dialog in self.dialogs.values():
+            if dialog is None:
+                continue
+            dialog.update()
 
     def draw(self):
         """Draws all the widgets and the main window"""
@@ -273,6 +458,12 @@ class ServerWindow:
         # Draw widgets
         for widget in self.widgets:
             widget.draw()
+
+        # Draw dialogs
+        for dialog in self.dialogs.values():
+            if dialog is None:
+                continue
+            dialog.draw()
 
 
 ### Widgets ###
@@ -381,7 +572,17 @@ class ServerInfoWidget(ServerWidget):
                 self.create_text(f"Server public IP: {get_public_ip()}", offset=3),
                 self.create_text(f"Server port: {CONFIG['server']['port']}", offset=4),
                 Text(
-                    "Start/stop",
+                    "Stop and Reset",
+                    pos=(
+                        self.pos[0] + (self.size[0] // 2),
+                        self.pos[1] + self.size[1] - 85,
+                    ),
+                    size=14,
+                    color=self.text_color,
+                    center=True,
+                ),
+                Text(
+                    "Start/Pause",
                     pos=(
                         self.pos[0] + (self.size[0] // 2),
                         self.pos[1] + self.size[1] - 40,
@@ -394,10 +595,18 @@ class ServerInfoWidget(ServerWidget):
             "mutable": [self.create_text("")] * 3,
         }
 
-        self.start_button = Button(
+        self.start_stop_button = Button(
             pos=(
                 self.pos[0] + (self.size[0] // 2),
                 self.pos[1] + self.size[1] - 40,
+            ),
+            size=(self.size[0] // 4 * 3, 50),
+            color="orange",
+        )
+        self.reset_button = Button(
+            pos=(
+                self.pos[0] + (self.size[0] // 2),
+                self.pos[1] + self.size[1] - 85,
             ),
             size=(self.size[0] // 4 * 3, 50),
             color="orange",
@@ -418,31 +627,45 @@ class ServerInfoWidget(ServerWidget):
                     int(
                         (
                             snake_game.uptime
-                            * (1 // CONFIG["server"]["time_until_update"])
+                            * (1 // (CONFIG["server"]["time_until_update"] * 0.95))
                         )
                     )
-                ),
+                )
+                + " (estimate)",
                 offset=6,
             )
             self.text_widgets["mutable"][1] = frame_count_widget
 
         if snake_game.running:
             time_next_tick_text = self.create_text(
-                f"Time until next frame: {str(round(snake_game.time_next_tick, 1)).zfill(3)} ms",
+                f"Time until next frame: {str(round(snake_game.time_next_tick, 4)).zfill(6)} ms",
                 offset=7,
             )
             self.text_widgets["mutable"][2] = time_next_tick_text
 
-        if self.start_button.check_pressed():
+        if self.start_stop_button.check_pressed():
             if not snake_game.running:
                 snake_game.start()
             else:
-                snake_game.stop()
+                snake_game.pause()
+
+        if self.reset_button.check_pressed():
+            # Don't allow reset if not stopped
+            if snake_game.running:
+                server_win.display_dialog(
+                    identifier="reset_error",
+                    message="The game must be paused first!",
+                    center=True,
+                    text_size=32,
+                )
+            else:
+                snake_game._reset()
 
     def draw(self):
         super().draw()
 
-        self.start_button.draw()
+        self.start_stop_button.draw()
+        self.reset_button.draw()
 
         for text_list in self.text_widgets.values():
             for text in text_list:
@@ -521,7 +744,7 @@ class ServerStatusMesagesWidget(ServerWidget):
 
     @property
     def needs_scroll(self):
-        """Implies there is already a message"""
+        """Assumes there is already a message"""
 
         return self.text_widgets["mutable"][-1].ending_y_pos >= (
             self.size[1] + self.pos[1]
@@ -529,7 +752,7 @@ class ServerStatusMesagesWidget(ServerWidget):
 
     @property
     def scroll_by(self):
-        """Implies there is already a message"""
+        """Assumes there is already a message"""
 
         return self.text_widgets["mutable"][-1].ending_y_pos - (
             self.size[1] + self.pos[1]
@@ -566,7 +789,17 @@ sys.stdout = StdOutOverride(sys.stdout)
 
 ### Main ###
 server_win = ServerWindow()
-server.start()
+
+
+def callback():
+    ...
+
+
+def error_handler(error: Exception):
+    server_win.error_message(Logger.log_error(error))
+
+
+server.start(callback=callback, error_handler=error_handler)
 
 
 def run_pygame_loop():
@@ -597,8 +830,7 @@ def run():
             pygame.quit()
             return
         except Exception as e:
-            Logger.log_error(e)
-            return
+            error_handler(e)
 
 
 if __name__ != "__main__":
@@ -609,7 +841,6 @@ del StdOutOverride
 sys.stdout = sys.__stdout__
 
 try:
-    server.disconnect_all_clients(force=False)
     server.close()
 except KeyboardInterrupt:
     print("\nForcing!")

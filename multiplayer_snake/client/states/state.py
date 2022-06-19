@@ -7,6 +7,7 @@ State handling
 """
 
 ### Setup ###
+from typing import Callable
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.pygame_tools import Widget
 from multiplayer_snake.shared.common import Logger, pygame
@@ -41,10 +42,14 @@ class ClientWidget(Widget):
 
 
 ### States ###
-
-
 class BaseState(Widget):
-    def __init__(self, identifier: str | None = None, *args, **kwargs):
+    def __init__(
+        self,
+        identifier: str | None = None,
+        display_dialog: Callable = lambda *_: None,
+        *args,
+        **kwargs,
+    ):
         # Colors and stuff
         text_size = GUI_CONFIG["text_size"]
         text_color = GUI_CONFIG["colors"]["widget"]["text"]
@@ -73,6 +78,8 @@ class BaseState(Widget):
             **kwargs,
         )
 
+        self.display_dialog = display_dialog
+
         if CONFIG["verbose"]:
             Logger.log(f"Created {self.identifier} state")
 
@@ -83,10 +90,16 @@ class BaseState(Widget):
 class State:
     """Handles the current state"""
 
-    current = BaseState()
+    def __init__(self, display_dialog: Callable = lambda *_: None):
+        self.display_dialog = display_dialog
+        self.current = BaseState()
 
 
-def update_state(state, *args, **kwargs):
+# Global state!
+state = State()
+
+
+def update_state(new_state: Callable, *args, **kwargs):
     """Updates the current state"""
 
-    State.current = state(*args, **kwargs)
+    state.current = new_state(*args, display_dialog=state.display_dialog, **kwargs)

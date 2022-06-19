@@ -13,6 +13,16 @@ from multiplayer_snake.shared.config_parser import parse
 CONFIG = parse()
 
 ### Classes ###
+# Reasons for snake death
+class DeathReason:
+    player_one_ran_into_player_two = "Player one ran into player two"
+    player_two_ran_into_player_one = "Player two ran into player one"
+    player_one_out_of_bounds = "Player one ran out of bounds"
+    player_two_out_of_bounds = "Player two ran out of bounds"
+    player_one_ran_into_self = "Player one ran into self"
+    player_two_ran_into_self = "Player two ran into self"
+
+
 class SharedGame:
     """
     Dataclass for game information
@@ -22,8 +32,8 @@ class SharedGame:
     grid_snap = 10
     window_width = 800
     window_height = 600
-    height = window_width // grid_snap
-    width = window_height // grid_snap
+    width = window_width // grid_snap
+    height = window_height // grid_snap
 
 
 class BaseSnakePlayer:
@@ -43,15 +53,16 @@ class BaseSnakePlayer:
     def _reset(
         self,
         default_pos: tuple = (0, 0),
+        default_dir: str = "right",
         default_length: int = 1,
         identifier: int | str = "unknown snake",
     ):
         self.identifier = identifier
-        self.alive: bool = True
+        self.alive = True
         self.tail: list[tuple] = [default_pos]  # List of positions
         self.length = default_length
-        self.pos = default_pos
-        self.direction: str = "right"
+        self.pos = list(default_pos)
+        self.direction = default_dir
 
         if CONFIG["verbose"]:
             Logger.log(f"Snake {self.identifier} created")
@@ -59,41 +70,9 @@ class BaseSnakePlayer:
     def reset(self):
         self._reset(*self._init_args, **self._init_kwargs)
 
-    def move(self):
-        # Update position
-        for dimension in range(2):
-            self.pos[dimension] = (
-                self.pos[dimension]
-                + self.direction_velocity_enum[self.direction][dimension]
-            )
-
-        self.tail.insert(0, self.pos)
-        self.tail.pop()
-
-    def collision_checking(self, other_snake_object: "BaseSnakePlayer"):
-        # Check if the snake is out of bounds
-        if (self.pos[0] < 0 or self.pos[0] >= SharedGame.width) or (
-            self.pos[1] < 0 or self.pos[1] >= SharedGame.height
-        ):
-            self.snake_died(reason="out of bounds")
-
-        # Check if the snake is colliding with itself
-        for pos in self.tail:
-            if pos == self.pos:
-                self.snake_died(reason="collided with self")
-
-        # Check if the snake is colliding with the other snake
-        for pos in other_snake_object.tail:
-            if pos == self.pos:
-                self.snake_died(reason="collided with other snake")
+    def touched_food(self):
+        self.tail.append(self.pos)
 
     def snake_died(self, reason: str = "unknown"):
-        if isinstance(self, BaseSnakePlayer):  # If not derived at all
-            Logger.warn(f"Snake {self.identifier} has no snake_died handler!")
-
         Logger.log(f"Snake {self.identifier} died because {reason = }")
         self.alive = False
-
-        # Typically in a normal snake game, we'd need to reset everything
-        # now. But, since this is multiplayer snake, the server will handle
-        # that.

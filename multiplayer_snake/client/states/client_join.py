@@ -17,8 +17,8 @@ from multiplayer_snake.shared.tools import check_username
 
 ### States ###
 class ClientJoinState(BaseState):
-    def __init__(self):
-        super().__init__(identifier="client join")
+    def __init__(self, *args, **kwargs):
+        super().__init__(identifier="client join", *args, **kwargs)
 
         # Variables
         self.username = ""
@@ -66,16 +66,14 @@ class ClientJoinState(BaseState):
             input.unfocus()
 
     def draw(self):
+        GlobalPygame.window.fill(GUI_CONFIG["colors"]["background"])
+
         self.join_button.draw()
 
         for widget in self.text_widgets:
             widget.draw()
 
         self.gui_manager.draw_ui(GlobalPygame.window)
-
-        # Handle button click
-        if self.join_button.check_pressed():
-            self.join()
 
     def handle_event(self, event: pygame.event.EventType):
         self.gui_manager.process_events(event)
@@ -84,18 +82,26 @@ class ClientJoinState(BaseState):
     def update(self):
         self.gui_manager.update(GlobalPygame.delta_time)
         self.gui_manager.draw_ui(GlobalPygame.window)
-        GlobalPygame.window.fill(GUI_CONFIG["colors"]["background"])
+
+        # Handle button click
+        if self.join_button.check_pressed():
+            self.join()
 
     def join(self):
         Logger.log("Joining game")
         username = self.text_inputs["username"].text
         # server_ip = self.text_inputs["server"].text
         # TESTING XXX
-        server_ip = "192.168.86.67:6500"
+        server_ip = "127.0.0.1:6500"
 
         if not check_username(username):
             Logger.fatal("Invalid username!")
-            # TODO: status message
+            self.display_dialog(
+                identifier="invalid_username",
+                message="Invalid username!",
+                text_size=32,
+                center=True,
+            )
             return
 
         try:
@@ -103,7 +109,12 @@ class ClientJoinState(BaseState):
             hisock.utils.validate_ipv4((ip, port), require_port=True)
         except ValueError:
             Logger.fatal("Invalid IP!")
-            # TODO: status message
+            self.display_dialog(
+                identifier="invalid_ip",
+                message="Invalid IP address!",
+                text_size=32,
+                center=True,
+            )
             return
 
         Logger.log(f"Connecting: {username}@{ip} on port {port}")
@@ -115,5 +126,9 @@ class ClientJoinState(BaseState):
             # New state
             update_state(GameState, client)
         except Exception as e:
-            Logger.log_error(e)
-            return
+            return self.display_dialog(
+                identifier="connect_error",
+                message=f"An error whilst connecting has occurred!\n{Logger.log_error(e)}",
+                text_size=12,
+                center=False,
+            )
