@@ -19,7 +19,7 @@ import multiplayer_snake.constants as constants
 from os import environ
 
 ### Credits ###
-if not "multiplayer_snake_credits" in environ:
+if "multiplayer_snake_credits" not in environ:
     Logger.log(f"Using hisock {hisock.constants.__version__}")
     Logger.log(
         f"Version {constants.__version__} of {constants.__name__} "

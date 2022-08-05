@@ -392,7 +392,7 @@ class ServerWindow:
         widgets: list = [
             PlayersListWidget(),
             ServerInfoWidget(),
-            ServerStatusMesagesWidget(),
+            ServerStatusMessagesWidget(),
         ]
 
         return widgets
@@ -672,7 +672,7 @@ class ServerInfoWidget(ServerWidget):
                 text.draw()
 
 
-class ServerStatusMesagesWidget(ServerWidget):
+class ServerStatusMessagesWidget(ServerWidget):
     """
     Widget for showing status messages about the current game,
     not just stats about the server.

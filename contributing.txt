@@ -9,7 +9,7 @@ Comments
 For section comments, use the `### Comment ###` syntax
 For other comments, have a space between the `#` and the
 text
-Use proper grammar in the commments but don't use
+Use proper grammar in the comments but don't use
 punctuation
 Only comment when it is going to help the person viewing
 the code (don't do like `# This declares function X`)
