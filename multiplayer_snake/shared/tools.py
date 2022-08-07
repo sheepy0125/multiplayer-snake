@@ -6,13 +6,15 @@ Created by sheepy0125
 Tools
 """
 
+# pylint: disable=unused-import
+
 ### Setup ###
-from multiplayer_snake.constants import DISALLOWED_CHARS_FOR_USERNAME
 import os  # Platform checking for ANSI colors
 from time import strftime
 from urllib import request
 from random import randint
 from traceback import format_exc
+from multiplayer_snake.constants import DISALLOWED_CHARS_FOR_USERNAME
 
 ### Logger ###
 class Logger:
@@ -28,7 +30,6 @@ class Logger:
     # If the user isn't on POSIX, allow colors
     if os.name != "posix":
         os.system("color")
-        del os
 
     @staticmethod
     def time() -> str:
@@ -40,6 +41,18 @@ class Logger:
         print(
             f"{Logger.time()} {Logger.colors['log']}[INFO] {message!s}"
             f"{Logger.colors['normal']}"
+        )
+
+    @staticmethod
+    def verbose(message: str):
+        from multiplayer_snake.shared.config_parser import parse
+
+        if not parse()["verbose"]:
+            return
+
+        print(
+            f"{Logger.time()} {Logger.colors['warn']}[VERB]{Logger.colors['normal']} "
+            f"{message!s}"
         )
 
     @staticmethod

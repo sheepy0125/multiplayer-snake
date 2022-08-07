@@ -29,7 +29,7 @@ class SharedGame:
     Must be the same between the client and the server!
     """
 
-    grid_snap = 10
+    grid_snap = 20
     window_width = 800
     window_height = 600
     width = window_width // grid_snap
@@ -55,7 +55,7 @@ class BaseSnakePlayer:
         default_pos: tuple = (0, 0),
         default_dir: str = "right",
         default_length: int = 1,
-        identifier: int | str = "unknown snake",
+        identifier: str = "unknown snake",
     ):
         self.identifier = identifier
         self.alive = True
@@ -64,8 +64,7 @@ class BaseSnakePlayer:
         self.pos = list(default_pos)
         self.direction = default_dir
 
-        if CONFIG["verbose"]:
-            Logger.log(f"Snake {self.identifier} created")
+        Logger.verbose(f"Snake {self.identifier} created")
 
     def reset(self):
         self._reset(*self._init_args, **self._init_kwargs)

@@ -6,16 +6,18 @@ Created by sheepy0125
 Common (shared) code!
 """
 
+# pylint: disable=unused-import, wrong-import-order
+
 ### Setup ###
 # Global imports
+from pathlib import Path
 import hisock
 import pygame
 import pygame_gui
-from pathlib import Path
 from multiplayer_snake.shared.tools import Logger
 
 # Other imports (must be deleted later)
-import multiplayer_snake.constants as constants
+from multiplayer_snake import constants
 from os import environ
 
 ### Credits ###

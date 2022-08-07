@@ -8,7 +8,13 @@ Server side code!
 
 ### Setup ###
 from typing import Callable
-import multiplayer_snake.constants as constants
+from time import time
+from datetime import timedelta
+from os import _exit as force_exit
+from io import TextIOWrapper
+from random import randint
+import sys
+from multiplayer_snake import constants
 from multiplayer_snake.shared.pygame_tools import DialogWidget
 from multiplayer_snake.shared.common import hisock, pygame, Logger
 from multiplayer_snake.shared.tools import (
@@ -25,12 +31,6 @@ from multiplayer_snake.shared.pygame_tools import (
 )
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.shared_game import BaseSnakePlayer, SharedGame
-from time import time
-from datetime import timedelta
-from os import _exit as force_exit
-from io import TextIOWrapper
-from random import randint
-import sys
 
 CONFIG = parse()
 GUI_CONFIG = CONFIG["gui"]
@@ -42,10 +42,17 @@ GlobalPygame.window = pygame.display.set_mode(GUI_CONFIG["window_size"])
 pygame.display.set_caption(f"{constants.__name__} Server (GUI)")
 
 # Setup hisock
-server = hisock.server.ThreadedHiSockServer(
-    ("127.0.0.1", CONFIG["server"]["port"]),
-    max_connections=2,
-)
+Logger.verbose("Setting up HiSock server")
+try:
+    server = hisock.server.ThreadedHiSockServer(
+        ("127.0.0.1", CONFIG["server"]["port"]),
+        max_connections=2,
+        cache_size=1,
+    )
+except Exception as e:
+    Logger.fatal("Failed to start server!")
+    Logger.log_error(e)
+    sys.exit(1)
 
 ### Classes ###
 class GameAlreadyRunningError(Exception):
@@ -70,12 +77,13 @@ class SnakeGame:
         self._reset()
 
         self.default_positions = (
-            (0, round(((SharedGame.height / 2) - 1), ndigits=1)),
-            (SharedGame.width - 1, round(((SharedGame.height / 2) - 1), ndigits=1)),
+            (5, round(((SharedGame.height / 2) - 1), ndigits=1)),
+            (SharedGame.width - 5, round(((SharedGame.height / 2) - 1), ndigits=1)),
         )
         self.default_directions = ("right", "left")
 
     def _reset(self):
+        Logger.log("Resetting game")
         self.frames: int = 0
         self.running: bool = False
         self.start_time: int = 0  # Unix timestamp
@@ -182,6 +190,7 @@ class SnakeGame:
 
     def stop(self):
         """Stop the game. Assumes the game has been paused."""
+
         self._reset()
 
     def add_player(self, ip_address: str, username: str) -> bool:
@@ -192,7 +201,7 @@ class SnakeGame:
             return False
 
         # Username isn't good
-        # NOTE: The username will have a 4 digit discriminator with a hashtag.
+        # The username will have a 4 digit discriminator with a hashtag.
         # Hashtags aren't allowed except for the discriminator.
         if not check_username(username[:-5]):
             return False
@@ -213,6 +222,8 @@ class SnakeGame:
             )
         )
 
+        Logger.verbose(f"Added player {username}")
+
         return True
 
     def snake_died(self, identifier: str, reason: str):
@@ -231,6 +242,8 @@ class ServerSnakePlayer(BaseSnakePlayer):
         """BaseSnakePlayer reset, but it has more stuff"""
 
         super()._reset(*args, **kwargs)
+
+        Logger.verbose(f"Resetting {self.identifier} snake")
 
         self.ip_address = ip_address
 
@@ -325,7 +338,7 @@ class ServerFood:
 
 
 ### Server handlers ###
-@server.on("join")
+@server.on("join", threaded=True)
 def on_client_join(client_data):
     Logger.log(
         f"{client_data.name} ({hisock.iptup_to_str(client_data.ip)})"
@@ -341,9 +354,14 @@ def on_client_join(client_data):
         return
 
     server.send_client(client_data, "join_response", {"username": username})
+    # If we send this event too fast, then the client may not receive it
+    # So, wait for the client to be ready
+    Logger.log(f"Blocking until client {username} says they're ready...")
+    server.recv(recv_on="ready_for_events")
+    Logger.log("They're ready! Continuing...")
     server.send_all_clients(
         "player_connect", [player.get_data() for player in snake_game.players_online]
-    )  # XXX: This is a bit of a hack
+    )
 
 
 @server.on("leave")
@@ -372,6 +390,27 @@ def on_client_update(_, data: dict):
     snake_game.update_player(player_identifier, new_direction)
 
 
+@server.on("name_change")
+def on_name_change(_, old_name: str, new_name: str):
+    Logger.verbose(f"Name change: {old_name} -> {new_name}")
+    # Check if the name change was sane
+    for player in snake_game.players_online:
+        if player.identifier == new_name:
+            break
+    else:
+        Logger.warn(
+            f"{old_name} changed their name to {new_name}, "
+            "but that's not a valid player name! What?"
+        )
+
+
+@server.on("*", threaded=True)
+def on_wildcard(client_data, command: str, data: str):
+    Logger.warn(
+        f"Wildcard command received from {client_data.ip}: {command} with data: {data}"
+    )
+
+
 ### Widgets / GUI ###
 class ServerWindow:
     """Handles all the widgets inside the window"""
@@ -382,18 +421,22 @@ class ServerWindow:
         self.widgets = self.create_widgets()
         self.dialogs = {"error": None}
 
-        if CONFIG["verbose"]:
-            Logger.log("Server window created")
+        Logger.verbose("Server window created")
 
-    def create_widgets(self) -> list:
-        if CONFIG["verbose"]:
-            Logger.log("Created widgets")
+    @staticmethod
+    def create_widgets() -> list:
+        Logger.verbose("Creating widgets")
 
         widgets: list = [
             PlayersListWidget(),
             ServerInfoWidget(),
             ServerStatusMessagesWidget(),
         ]
+
+        Logger.verbose(
+            f"Created {len(widgets)} widgets: "
+            f"{', '.join((repr(widget) for widget in widgets))}"
+        )
 
         return widgets
 
@@ -486,8 +529,10 @@ class ServerWidget(Widget):
             **kwargs,
         )
 
-        if CONFIG["verbose"]:
-            Logger.log(f"Created {self.identifier} widget")
+        Logger.verbose(f"Created {self.identifier} widget")
+
+    def __repr__(self):
+        return f"<ServerWidget identifier={self.identifier}>"
 
 
 class PlayersListWidget(ServerWidget):
@@ -517,10 +562,10 @@ class PlayersListWidget(ServerWidget):
         ):
             return
 
-        if CONFIG["verbose"]:
-            Logger.log(
-                f"Updating players (players online: {len(snake_game.players_online)})"
-            )
+        Logger.verbose(
+            f"Updating players (players online: {len(snake_game.players_online)}, "
+            f"players shown: {len(self.text_widgets['mutable']) // 2})"
+        )
 
         mutable_text_widgets: list[Text] = []
         for num, player in enumerate(snake_game.players_online):
@@ -537,10 +582,9 @@ class PlayersListWidget(ServerWidget):
                 ),
             )
 
-            if CONFIG["verbose"]:
-                Logger.log(f"Created text widget for player snake {player.identifier}")
+            Logger.verbose(f"Created text widget for player snake {player.identifier}")
 
-            self.text_widgets["mutable"] = mutable_text_widgets
+        self.text_widgets["mutable"] = mutable_text_widgets
 
     def draw(self):
         super().draw()
@@ -700,7 +744,7 @@ class ServerStatusMessagesWidget(ServerWidget):
         self.update()
 
     def update(self):
-        ...
+        sys.stdout.clear_buffer()
 
     def add_text(self, text: str):
         # Add wrapping text
@@ -763,6 +807,10 @@ class ServerStatusMessagesWidget(ServerWidget):
 class StdOutOverride:
     def __init__(self, _file: TextIOWrapper):
         self.file = _file
+        # Sometimes, what will happen is a message will be logged before the server
+        # window is fully initialized
+        # In that case, we need to put it in a buffer and output them later
+        self.buffer = set()
 
     def write(self, text: str):
         self.file.write(text)
@@ -772,17 +820,27 @@ class StdOutOverride:
             for ansi_color in Logger.colors.values():
                 text = text.replace(ansi_color, "")
 
-            self.log_to_widget(text)
+            self.buffer.add(text)
 
-    def flush(self):
-        self.file.flush()
+    def log_to_widget(self, text: str) -> bool:
+        """Returns whether the logging succeeded or not"""
 
-    def log_to_widget(self, text: str):
-        server_win.widgets[2].add_text(text)
+        try:
+            server_win.widgets[2].add_text(text)
 
-        # Scrolling
-        if server_win.widgets[2].needs_scroll:
-            server_win.widgets[2].scroll(scroll_by=server_win.widgets[2].scroll_by)
+            # Scrolling
+            if server_win.widgets[2].needs_scroll:
+                server_win.widgets[2].scroll(scroll_by=server_win.widgets[2].scroll_by)
+
+            return True
+        except NameError:
+            self.buffer.add(text)
+            return False
+
+    def clear_buffer(self):
+        while len(self.buffer) > 0:
+            if not self.log_to_widget(self.buffer.pop()):
+                break
 
 
 sys.stdout = StdOutOverride(sys.stdout)
@@ -792,7 +850,12 @@ server_win = ServerWindow()
 
 
 def callback():
-    ...
+    if len(server.cache) == 0:
+        Logger.verbose("Callback from HiSock, no data")
+        return
+    Logger.verbose(
+        f"Callback from HiSock, most recent data sent:\n{server.cache[0].content}"
+    )
 
 
 def error_handler(error: Exception):
@@ -823,7 +886,8 @@ def run():
         try:
             if not run_pygame_loop():
                 # Request to exit
-                return pygame.quit()
+                pygame.quit()
+                return
             snake_game.run()
         except KeyboardInterrupt:
             print("\nExiting gracefully...")
@@ -834,7 +898,7 @@ def run():
 
 
 if __name__ != "__main__":
-    exit()
+    sys.exit()
 
 run()
 del StdOutOverride

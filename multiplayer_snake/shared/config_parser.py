@@ -7,6 +7,7 @@ Config parser!
 """
 
 ### Setup ###
+from sys import exit as sys_exit
 from jsonc_parser.parser import JsoncParser
 from jsonc_parser.errors import FileError, ParserError
 from multiplayer_snake.shared.common import DEFAULT_CONFIG_PATH, Path, Logger
@@ -37,7 +38,7 @@ def parse(config_path: Path | str | None = None) -> dict:
     except (FileNotFoundError, FileError):
         Logger.fatal(f"Config filepath ({config_path!s}) doesn't exist")
     except ParserError:
-        Logger.fatal(f"Config file isn't a valid JSONC file")
+        Logger.fatal("Config file isn't a valid JSONC file")
     else:
         Logger.log(
             f"Loaded {len(config['server'].keys())} keys for server config and "
@@ -48,7 +49,5 @@ def parse(config_path: Path | str | None = None) -> dict:
 
     # The JSON file being invalid, cannot continue
     Logger.fatal("Couldn't load config file (UNRECOVERABLE)")
-    exit(1)
-
-
-# TODO: add config checker
+    sys_exit(1)
+    return {}  # Stupid pylint

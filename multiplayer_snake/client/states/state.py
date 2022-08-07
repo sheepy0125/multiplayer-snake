@@ -37,8 +37,7 @@ class ClientWidget(Widget):
             **kwargs,
         )
 
-        if CONFIG["verbose"]:
-            Logger.log(f"Created {self.identifier} widget")
+        Logger.verbose(f"Created {self.identifier} widget")
 
 
 ### States ###
@@ -80,8 +79,7 @@ class BaseState(Widget):
 
         self.display_dialog = display_dialog
 
-        if CONFIG["verbose"]:
-            Logger.log(f"Created {self.identifier} state")
+        Logger.verbose(f"Created {self.identifier} state")
 
     def handle_event(self, _: pygame.event.Event):
         Logger.warn(f"State {self.identifier} has no event handler")

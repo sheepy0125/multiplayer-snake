@@ -8,7 +8,7 @@ Client game code
 
 ### Setup ###
 from typing import Callable
-import multiplayer_snake.constants as constants
+from multiplayer_snake import constants
 from multiplayer_snake.shared.common import pygame, Logger
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.pygame_tools import GlobalPygame, DialogWidget

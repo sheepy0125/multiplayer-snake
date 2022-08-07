@@ -6,6 +6,8 @@ Created by sheepy0125
 Constants!
 """
 
+# pylint: disable=redefined-builtin
+
 __author__ = "sheepy0125"
 __copyright__ = "sheepy0125, 2021-present"
 __license__ = "MIT"

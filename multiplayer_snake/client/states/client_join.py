@@ -7,11 +7,11 @@ Client join state code
 """
 
 ### Setup ###
-import multiplayer_snake.constants as constants
+from multiplayer_snake import constants
 from multiplayer_snake.client.states.state import BaseState, GUI_CONFIG, update_state
 from multiplayer_snake.client.states.state_info import GameState
 from multiplayer_snake.shared.common import Logger
-from multiplayer_snake.shared.pygame_tools import Text, Button, GlobalPygame
+from multiplayer_snake.shared.pygame_tools import Button, GlobalPygame
 from multiplayer_snake.shared.common import pygame_gui, pygame, hisock
 from multiplayer_snake.shared.tools import check_username
 
@@ -20,26 +20,20 @@ class ClientJoinState(BaseState):
     def __init__(self, *args, **kwargs):
         super().__init__(identifier="client join", *args, **kwargs)
 
-        # Variables
+        ### Setup input variables ###
         self.username = ""
-        self.discriminator = ""
         self.server_ip = ""
 
-        # Setup
+        ### Setup GUI ###
         self.gui_manager = pygame_gui.UIManager(GUI_CONFIG["window_size"])
-        self.text_widgets: list[Text] = [
+        # Text widgets
+        self.text_widgets = [
             self.create_text("Multiplayer Snake", 0.5, text_size=48),
             self.create_text(f"Created by {constants.__author__}", 5, text_size=12),
             self.create_text("Username", 3, text_size=36),
             self.create_text("Server IP (include port)", 5, text_size=36),
             self.create_text("Connect", 8, text_size=36),
         ]
-        self.join_button = Button(
-            (GUI_CONFIG["window_size"][0] // 2, self.text_widgets[-1].pos[1]),
-            size=(200, 75),
-            color="green",
-        )
-
         # Text inputs
         self.text_inputs = {
             "username": pygame_gui.elements.UITextEntryLine(
@@ -57,13 +51,19 @@ class ClientJoinState(BaseState):
         }
         for text_input in self.text_inputs.values():
             text_input.enable()
+        # Join button
+        self.join_button = Button(
+            (GUI_CONFIG["window_size"][0] // 2, self.text_widgets[-1].pos[1]),
+            size=(200, 75),
+            color="green",
+        )
 
     def focus_current_textbox(self):
-        for input in self.text_inputs.values():
-            if input.relative_rect.collidepoint(pygame.mouse.get_pos()):
-                input.focus()
+        for text_input in self.text_inputs.values():
+            if text_input.relative_rect.collidepoint(pygame.mouse.get_pos()):
+                text_input.focus()
                 continue
-            input.unfocus()
+            text_input.unfocus()
 
     def draw(self):
         GlobalPygame.window.fill(GUI_CONFIG["colors"]["background"])
@@ -126,7 +126,7 @@ class ClientJoinState(BaseState):
             # New state
             update_state(GameState, client)
         except Exception as e:
-            return self.display_dialog(
+            self.display_dialog(
                 identifier="connect_error",
                 message=f"An error whilst connecting has occurred!\n{Logger.log_error(e)}",
                 text_size=12,

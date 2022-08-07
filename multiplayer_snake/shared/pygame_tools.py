@@ -7,9 +7,9 @@ Pygame tools!
 """
 
 ### Setup ###
+from typing import Callable
 from multiplayer_snake.shared.common import pygame, Logger, ROOT_PATH
 from multiplayer_snake.shared.config_parser import parse
-from typing import Callable
 
 CONFIG = parse()
 FONT_PATH = ROOT_PATH / CONFIG["font_path"]

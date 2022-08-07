@@ -1,7 +1,7 @@
 /* Config for Multiplayer Snake */
 {
 	/* Global config */
-	"verbose": false /* TODO: Logger.verbose or Logger.debug */,
+	"verbose": true,
 	"font_path": "terminus.ttf" /* Directory: /multiplayer_snake/ */,
 	"show_public_ip": false,
 

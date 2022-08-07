@@ -21,7 +21,11 @@ class ClientFood:
 
     def draw(self):
         CenterRect(
-            pos=self.pos,
+            pos=tuple(
+                # I really gotta stop using CenterRect for everything
+                i + (SharedGame.grid_snap / 2)
+                for i in self.pos
+            ),
             size=(SharedGame.grid_snap, SharedGame.grid_snap),
             color=CONFIG["gui"]["colors"]["food"],
         ).draw()

@@ -11,18 +11,70 @@ from multiplayer_snake.shared.common import pygame, Logger, hisock
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.shared_game import SharedGame
 from multiplayer_snake.shared.pygame_tools import GlobalPygame
-from multiplayer_snake.client.states.state import BaseState, update_state
+from multiplayer_snake.client.states.state import BaseState
 from multiplayer_snake.client.snake import ClientSnakePlayer
 from multiplayer_snake.client.food import ClientFood
+from multiplayer_snake.client.states.waiting_player_join_state import (
+    WaitingPlayerJoinState,
+)
+
 
 CONFIG = parse()
 GUI_CONFIG = CONFIG["gui"]
 
+### Classes ###
+class SentinelName:
+    ...
+
+
+class MultiplayerPlayer:
+    def __init__(
+        self, name: str | None, snake: ClientSnakePlayer, waiting_rematch: bool = False
+    ):
+        self.name = name or SentinelName()
+        self.waiting_rematch = waiting_rematch
+        self.snake = snake
+
+        # Should be updated by first update, it's okay to set them to be None
+        self.position: tuple | None = None
+        self.direction: str | None = None
+        self.tail: list | None = None
+
+    def update(self, data: dict):
+        """Updates data with that from the server "update" event"""
+
+        self.position = data["pos"]
+        self.direction = data["direction"]
+        self.tail = data["tail"]
+        self.snake.update(self.position, self.direction, self.tail)
+
+    @property
+    def exists(self):
+        return not isinstance(self.name, SentinelName)
+
+
 ### States ###
 class GameState(BaseState):
+    """
+    Game state
+    Handles the HiSock connection, snake game, and can have the following substates:
+    - WaitingPlayerJoinState
+    These substates won't be set through the global state, instead being drawn in this
+    state, so the HiSock connection can remain.
+    """
+
     def __init__(self, client: hisock.client.ThreadedHiSockClient, *args, **kwargs):
         super().__init__(identifier="game", *args, **kwargs)
 
+        ### HiSock setup ###
+        self.client = client
+        self.client.start()
+        # Change our name
+        name: str = self.client.recv("join_response", recv_as=dict)["username"]
+        self.client.change_name(name)
+
+        ### Directions ###
+        # Key enums
         self.key_enum = {
             pygame.K_w: "up",
             pygame.K_s: "down",
@@ -39,78 +91,109 @@ class GameState(BaseState):
             "left": "right",
             "right": "left",
         }
+        # Corresponds to how many players have joined
+        self.default_directions = [
+            "right",
+            "left",
+        ]
+        self.next_move: str
+        # Default direction, will be changed by `_on_player_connect`
+        self.default_next_move: str | None = None
 
-        # next commit :eyes:
-        # self.waiting_other_player = True
+        ### Setup players ###
+        self.players = {
+            "self": MultiplayerPlayer(
+                name=name,
+                snake=ClientSnakePlayer(
+                    head_color=GUI_CONFIG["colors"]["snek_one_head"],
+                    tail_color=GUI_CONFIG["colors"]["snek_one_tail"],
+                ),
+            ),
+            "other": MultiplayerPlayer(
+                # We don't know if they've connected yet.
+                # We'll find that out if the server sends a join response with
+                # a list of player data...s
+                name=None,
+                snake=ClientSnakePlayer(
+                    head_color=GUI_CONFIG["colors"]["snek_two_head"],
+                    tail_color=GUI_CONFIG["colors"]["snek_two_tail"],
+                ),
+            ),
+        }
 
+        ### Setup game and board ###
         self.foods = []
-        self.snake = ClientSnakePlayer(
-            head_color=GUI_CONFIG["colors"]["snek_one_head"],
-            tail_color=GUI_CONFIG["colors"]["snek_one_tail"],
-        )
-        self.other_snake = ClientSnakePlayer(
-            head_color=GUI_CONFIG["colors"]["snek_two_head"],
-            tail_color=GUI_CONFIG["colors"]["snek_two_tail"],
-        )
-        self.update_called = False
         self.grid = Grid()
 
-        self.client = client
-        self.client.start()
-        # Default direction, can be changed by `on_player_connect`
-        # XXX This is kinda hacky, consider refactoring
-        self.next_move = "left"
-        self.default_next_move = "left"
+        ### Update data ###
+        self.update_called = False
+        self.update_data: dict
 
-        self.name = client.recv("join_response", recv_as=dict)["username"]
-        self.other_name = "NULL"  # XXX This is kinda hacky, consider refactoring
+        ### Substates ###
+        self.waiting_player_join_substate = WaitingPlayerJoinState()
 
+        ### HiSock listeners ###
         @client.on("player_connect")
-        def on_player_connect(player_data: list):
-            # XXX There's probably a better way to do this
-            self.other_name = player_data[-1]["identifier"]
-            if len(player_data) == 1:
-                # We're the first player, face right instead of left
-                self.next_move = "right"
-                self.default_next_move = "right"
+        def _on_player_connect(player_data: list):
+            num_of_players = len(player_data)
+
+            # Set the default next move to be how many players there are at the time of us joining
+            # If this is us connecting, then the variable will be None
+            if not self.default_next_move:
+                self.default_next_move = self.default_directions[num_of_players - 1]
+
+            if num_of_players == 1:
+                return
+
+            # Find the other player's name
+            for player in player_data:
+                player_name = player["identifier"]
+                if player_name == self.players["self"].name:
+
+                    continue
+                # Found the other player's name
+                self.players["other"].name = player_name
+                break
+            else:
+                Logger.warn("Players have the same name, this shouldn't happen")
+                self.players["other"].name = self.players["self"].name
 
         @client.on("game_started")
-        def on_game_started(data: dict):
-            players = data["players"]
-            self.other_name = players[players.index(self.name) - 1]
+        def _on_game_started(_: dict):
             self.next_move = self.default_next_move
 
         @client.on("update")
-        def update(data: dict):
+        def _update(data: dict):
             """Called every frame"""
-
-            player_data = data["players"]
-
-            our_data = player_data[self.name]
-            self.our_position = our_data["pos"]
-            self.our_direction = our_data["direction"]
-            self.our_tail = our_data["tail"]
-
-            other_data = player_data[self.other_name]
-            self.other_position = other_data["pos"]
-            self.other_direction = other_data["direction"]
-            self.other_tail = other_data["tail"]
-
-            food_data = data["foods"]
-            self.foods = []
-            for food in food_data:
-                self.foods.append(
-                    ClientFood(
-                        tuple(food["pos"][i] * SharedGame.grid_snap for i in range(2))
-                    )
-                )
 
             self.update_called = True
 
+            self.update_data = data
+            self.update()
+
             # Send our data
             client.send(
-                "update", {"direction": self.next_move, "identifier": self.name}
+                "update",
+                {"direction": self.next_move, "identifier": self.players["self"].name},
             )
+
+        # Everything is ready!
+        # State that we're ready for receiving events
+        client.send("ready_for_events")
+
+    @property
+    def players_connected(self) -> int:
+        """Returns how many players are connected"""
+
+        if self.players["other"].exists:
+            return 2
+        return 1
+
+    @property
+    def rematch(self) -> bool:
+        """Not implemented"""
+
+        return False
 
     def handle_event(self, event: pygame.event.EventType):
         # Get keyboard input
@@ -118,40 +201,49 @@ class GameState(BaseState):
             next_move = self.key_enum[event.key]
             # Prevent the next move if it will cause the snake to go inside itself
             if (
-                len(self.our_tail) == 1  # We can move freely if we are just a head
-                or self.rev_key_enum[next_move] != self.our_direction
+                len(self.players["self"].tail)
+                == 1  # We can move freely if we are just a head
+                or self.rev_key_enum[next_move] != self.players["self"].direction
             ):
                 self.next_move = next_move
 
     def update(self):
+        self.waiting_player_join_substate.update()
+
         if not self.update_called:
             return
 
+        # Update players
+        player_data = self.update_data["players"]
+        for player in self.players.values():
+            player.update(player_data[player.name])
+
+        # Update foods
+        food_data = self.update_data["foods"]
+        self.foods = []
+        for food in food_data:
+            self.foods.append(
+                ClientFood(
+                    tuple(food["pos"][i] * SharedGame.grid_snap for i in range(2))
+                )
+            )
+
         self.update_called = False
 
-        print(f"Updating: {self.our_position}")
-
-        # Update the snake
-        self.snake.update(self.our_position, self.our_tail, self.our_direction)
-
-        # Update the other snake
-        self.other_snake.update(
-            self.other_position, self.other_tail, self.other_direction
-        )
-
-        self.snake.update(self.our_position, self.our_direction, self.our_tail)
-        self.other_snake.update(
-            self.other_position, self.other_direction, self.other_tail
-        )
-
     def draw(self):
+        ### Draw substates if needed ###
+        # Waiting player join
+        if self.players_connected == 1:
+            self.waiting_player_join_substate.draw()
+            return
+
         GlobalPygame.window.fill("black")
         # Grid
         self.grid.draw()
         GlobalPygame.window.blit(self.grid.grid_surf, (0, 0))
         # Draw the snakes
-        self.snake.draw()
-        self.other_snake.draw()
+        for player in self.players.values():
+            player.snake.draw()
         # Draw the foods
         for food in self.foods:
             food.draw()
@@ -177,13 +269,13 @@ class Grid:
             pygame.draw.line(
                 self.grid_surf,
                 GUI_CONFIG["colors"]["grid"]["line"],
-                ((row + 0.5) * SharedGame.grid_snap, 0),
-                ((row + 0.5) * SharedGame.grid_snap, SharedGame.window_height),
+                ((row + 1) * SharedGame.grid_snap, 0),
+                ((row + 1) * SharedGame.grid_snap, SharedGame.window_height),
             )
             for column in range(0, SharedGame.height):
                 pygame.draw.line(
                     self.grid_surf,
                     GUI_CONFIG["colors"]["grid"]["line"],
-                    (0, (column + 0.5) * SharedGame.grid_snap),
-                    (SharedGame.window_width, (column + 0.5) * SharedGame.grid_snap),
+                    (0, (column + 1) * SharedGame.grid_snap),
+                    (SharedGame.window_width, (column + 1) * SharedGame.grid_snap),
                 )

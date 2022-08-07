@@ -40,15 +40,17 @@ class ClientSnakePlayer(BaseSnakePlayer):
 
             CenterRect(
                 pos=tuple(
-                    [
-                        # Snap to grid
+                    # Snap to grid
+                    (
                         tail_pos[i] * SharedGame.grid_snap
-                        for i in range(2)
-                    ]
+                        # Uhh, why did I decide to use a CenterRect again?
+                        + SharedGame.grid_snap / 2
+                    )
+                    for i in range(2)
                 ),
                 size=(SharedGame.grid_snap,) * 2,
                 color=color,
-                rounded_corner_radius=SharedGame.grid_snap // 5,
+                rounded_corner_radius=SharedGame.grid_snap // 3,
             ).draw()
 
 
