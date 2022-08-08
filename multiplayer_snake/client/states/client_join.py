@@ -121,7 +121,7 @@ class ClientJoinState(BaseState):
 
         try:
             client = hisock.client.ThreadedHiSockClient(
-                (ip, port), name=username, group=None
+                (ip, port), name=username, group=None, cache_size=1
             )
             # New state
             update_state(GameState, client)

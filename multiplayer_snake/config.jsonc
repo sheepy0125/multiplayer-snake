@@ -16,16 +16,25 @@
 
 	/* GUI config */
 	"gui": {
-		"window_size": [800, 600],
+		"window_size": [800, 800],
 		"widget_padding": 10,
-		"text_size": 12,
+		"text_size": 14,
 		/* Colors (rgb) */
 		"colors": {
-			"background": [211, 211, 211],
-			"text": [0, 0, 0],
+			// Light mode (my eyes hurt)
+			// "background": [211, 211, 211],
+			// "text": [0, 0, 0],
+			// "widget": {
+			// 	"background": [255, 255, 255],
+			// 	"text": [0, 0, 0],
+			// 	"border": [255, 105, 180] /* Pink */
+			// },
+			// Dark mode
+			"background": [69, 69, 69],
+			"text": [255, 255, 255],
 			"widget": {
-				"background": [255, 255, 255],
-				"text": [0, 0, 0],
+				"background": [40, 40, 40],
+				"text": [255, 255, 255],
 				"border": [255, 105, 180] /* Pink */
 			},
 			"grid": {

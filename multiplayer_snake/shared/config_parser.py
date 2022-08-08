@@ -40,10 +40,13 @@ def parse(config_path: Path | str | None = None) -> dict:
     except ParserError:
         Logger.fatal("Config file isn't a valid JSONC file")
     else:
-        Logger.log(
-            f"Loaded {len(config['server'].keys())} keys for server config and "
-            f"{len(config['client'].keys())} keys for client config"
-        )
+        if config["verbose"]:
+            Logger.verbose(
+                f"Loaded {len(config['server'].keys())} keys for server config and "
+                f"{len(config['client'].keys())} keys for client config",
+                check=False,
+            )
+            Logger.verbose(f"Config: {config}", check=False)
         Cache.config = config
         return config
 

@@ -11,6 +11,7 @@ from multiplayer_snake.shared.common import pygame, Logger, hisock
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.shared_game import SharedGame
 from multiplayer_snake.shared.pygame_tools import GlobalPygame
+from multiplayer_snake.shared.hisock_tools import GlobalHiSock, hisock_callback, send
 from multiplayer_snake.client.states.state import BaseState
 from multiplayer_snake.client.snake import ClientSnakePlayer
 from multiplayer_snake.client.food import ClientFood
@@ -67,8 +68,9 @@ class GameState(BaseState):
         super().__init__(identifier="game", *args, **kwargs)
 
         ### HiSock setup ###
-        self.client = client
-        self.client.start()
+        GlobalHiSock.connection = client
+        self.client = GlobalHiSock.connection
+        self.client.start(callback=hisock_callback)
         # Change our name
         name: str = self.client.recv("join_response", recv_as=dict)["username"]
         self.client.change_name(name)
@@ -172,14 +174,15 @@ class GameState(BaseState):
             self.update()
 
             # Send our data
-            client.send(
+            send(
+                client.send,
                 "update",
-                {"direction": self.next_move, "identifier": self.players["self"].name},
+                {"direction": self.next_move},
             )
 
         # Everything is ready!
         # State that we're ready for receiving events
-        client.send("ready_for_events")
+        send(client.send, "ready_for_events")
 
     @property
     def players_connected(self) -> int:

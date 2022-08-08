@@ -6,7 +6,7 @@ Created by sheepy0125
 Common (shared) code!
 """
 
-# pylint: disable=unused-import, wrong-import-order
+# pylint: disable=unused-import, wrong-import-order, wrong-import-position
 
 ### Setup ###
 # Global imports
@@ -15,6 +15,8 @@ import hisock
 import pygame
 import pygame_gui
 from multiplayer_snake.shared.tools import Logger
+
+ClientInfo = hisock.utils.ClientInfo
 
 # Other imports (must be deleted later)
 from multiplayer_snake import constants

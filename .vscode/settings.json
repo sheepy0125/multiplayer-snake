@@ -1,5 +1,6 @@
 {
 	"cSpell.words": [
+		"autodetected",
 		"blit",
 		"collidepoint",
 		"cooldown",
@@ -15,10 +16,16 @@
 		"sheepy",
 		"snek",
 		"substate",
-		"substates"
+		"substates",
+		"unpopped"
 	],
+	"sonarlint.rules": {
+		"python:S2208": {
+			"level": "off"
+		}
+	},
 	"pylint.args": [
 		"--extension-pkg-whitelist=pygame",
-		"--disable=keyword-arg-before-vararg,missing-class-docstring,missing-function-docstring,invalid-name,broad-except,attribute-defined-outside-init,arguments-differ,protected-access,reimported,import-outside-toplevel,unspecified-encoding,too-many-instance-attributes,too-few-public-methods,too-many-arguments,too-few-public-methods,too-many-instance-attributes"
+		"--disable=keyword-arg-before-vararg,missing-class-docstring,missing-function-docstring,invalid-name,broad-except,attribute-defined-outside-init,arguments-differ,protected-access,reimported,import-outside-toplevel,unspecified-encoding,too-many-instance-attributes,too-few-public-methods,too-many-arguments,too-few-public-methods,too-many-instance-attributes,super-init-not-called"
 	]
 }

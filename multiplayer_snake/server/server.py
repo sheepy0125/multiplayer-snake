@@ -13,10 +13,17 @@ from datetime import timedelta
 from os import _exit as force_exit
 from io import TextIOWrapper
 from random import randint
+from threading import Thread
 import sys
 from multiplayer_snake import constants
 from multiplayer_snake.shared.pygame_tools import DialogWidget
-from multiplayer_snake.shared.common import hisock, pygame, Logger
+from multiplayer_snake.shared.hisock_tools import GlobalHiSock, send, hisock_callback
+from multiplayer_snake.shared.common import (
+    hisock,
+    ClientInfo,
+    pygame,
+    Logger,
+)  # pylint: disable=no-name-in-module
 from multiplayer_snake.shared.tools import (
     get_public_ip,
     get_discriminator,
@@ -44,7 +51,7 @@ pygame.display.set_caption(f"{constants.__name__} Server (GUI)")
 # Setup hisock
 Logger.verbose("Setting up HiSock server")
 try:
-    server = hisock.server.ThreadedHiSockServer(
+    GlobalHiSock.connection = hisock.server.ThreadedHiSockServer(
         ("127.0.0.1", CONFIG["server"]["port"]),
         max_connections=2,
         cache_size=1,
@@ -54,12 +61,10 @@ except Exception as e:
     Logger.log_error(e)
     sys.exit(1)
 
+server = GlobalHiSock.connection
+
 ### Classes ###
 class GameAlreadyRunningError(Exception):
-    ...
-
-
-class TestCrash(Exception):
     ...
 
 
@@ -174,7 +179,8 @@ class SnakeGame:
         self.last_update_time = time()
 
         # Alert everyone that the game has started
-        server.send_all_clients(
+        send(
+            server.send_all_clients,
             "game_started",
             {"players": [player.identifier for player in self.players_online]},
         )
@@ -228,7 +234,9 @@ class SnakeGame:
 
     def snake_died(self, identifier: str, reason: str):
         Logger.log("The game has ended!")
-        server.send_all_clients("game_over", f"{identifier} died because {reason}")
+        send(
+            server.send_all_clients, "game_over", f"{identifier} died because {reason}"
+        )
         self.stop()
 
 
@@ -338,8 +346,13 @@ class ServerFood:
 
 
 ### Server handlers ###
+def _wait_for_ready_signal() -> bool:
+    server.recv(recv_on="ready_for_events")
+    return True
+
+
 @server.on("join", threaded=True)
-def on_client_join(client_data):
+def on_client_join(client_data: ClientInfo):
     Logger.log(
         f"{client_data.name} ({hisock.iptup_to_str(client_data.ip)})"
         " connected to the server"
@@ -353,19 +366,37 @@ def on_client_join(client_data):
         server.disconnect_client(client_data)
         return
 
-    server.send_client(client_data, "join_response", {"username": username})
-    # If we send this event too fast, then the client may not receive it
+    send(server.send_client, client_data, "join_response", {"username": username})
+
+    # If we send the player connect event too fast, then the client may not receive it
     # So, wait for the client to be ready
-    Logger.log(f"Blocking until client {username} says they're ready...")
-    server.recv(recv_on="ready_for_events")
+    # This also serves as a sort-of keepalive to see if the client acts normally and/or
+    # doesn't die immediately
+    timeout = 10  # seconds
+    Logger.log(
+        f"Blocking join thread until client {username} says they're ready... "
+        f"timeout of {timeout} seconds"
+    )
+    waiting_ready_signal_thread = Thread(target=_wait_for_ready_signal)
+    waiting_ready_signal_thread.start()
+    start_time = time()
+    waiting_ready_signal_thread.join(float(timeout))
+    finished_waiting_time = time()
+    if finished_waiting_time - start_time >= timeout - 0.25:
+        Logger.log("It seems like they're dead, not going to block anymore")
+        server.disconnect_client(client_data.ip)
+        return
     Logger.log("They're ready! Continuing...")
-    server.send_all_clients(
-        "player_connect", [player.get_data() for player in snake_game.players_online]
+
+    send(
+        server.send_all_clients,
+        "player_connect",
+        [player.get_data() for player in snake_game.players_online],
     )
 
 
 @server.on("leave")
-def on_client_leave(client_data):
+def on_client_leave(client_data: ClientInfo):
     Logger.log(
         f"{client_data.name} ({hisock.iptup_to_str(client_data.ip)})"
         " disconnected from the server"
@@ -380,32 +411,33 @@ def on_client_leave(client_data):
 
 @server.on("request_data")
 def update_clients_with_data():
-    server.send_all_clients("update", snake_game.get_data())
+    send(server.send_all_clients, "update", snake_game.get_data())
 
 
 @server.on("update")
-def on_client_update(_, data: dict):
-    player_identifier = data["identifier"]
+def on_client_update(client_data: ClientInfo, data: dict):
+    player_identifier = client_data["name"]
     new_direction = data["direction"]
     snake_game.update_player(player_identifier, new_direction)
 
 
 @server.on("name_change")
-def on_name_change(_, old_name: str, new_name: str):
+def on_name_change(client_data: ClientInfo, old_name: str, new_name: str):
     Logger.verbose(f"Name change: {old_name} -> {new_name}")
     # Check if the name change was sane
     for player in snake_game.players_online:
         if player.identifier == new_name:
             break
     else:
-        Logger.warn(
+        Logger.fatal(
             f"{old_name} changed their name to {new_name}, "
-            "but that's not a valid player name! What?"
+            "but that's not a valid player name! Kicking!"
         )
+        server.disconnect_client(client_data)
 
 
 @server.on("*", threaded=True)
-def on_wildcard(client_data, command: str, data: str):
+def on_wildcard(client_data: ClientInfo, command: str, data: str):
     Logger.warn(
         f"Wildcard command received from {client_data.ip}: {command} with data: {data}"
     )
@@ -610,11 +642,9 @@ class ServerInfoWidget(ServerWidget):
         self.text_widgets: dict = {
             "immutable": [
                 self.create_text("Server status", offset=0, text_size=16),
-                self.create_text(
-                    f"Server local IP: {hisock.utils.get_local_ip()}", offset=2
-                ),
-                self.create_text(f"Server public IP: {get_public_ip()}", offset=3),
-                self.create_text(f"Server port: {CONFIG['server']['port']}", offset=4),
+                self.create_text(f"Local IP: {hisock.utils.get_local_ip()}", offset=2),
+                self.create_text(f"Public IP: {get_public_ip()}", offset=3),
+                self.create_text(f"Port: {CONFIG['server']['port']}", offset=4),
                 Text(
                     "Stop and Reset",
                     pos=(
@@ -682,7 +712,7 @@ class ServerInfoWidget(ServerWidget):
 
         if snake_game.running:
             time_next_tick_text = self.create_text(
-                f"Time until next frame: {str(round(snake_game.time_next_tick, 4)).zfill(6)} ms",
+                f"Next frame in: {str(round(snake_game.time_next_tick, 4)).zfill(6)} ms",
                 offset=7,
             )
             self.text_widgets["mutable"][2] = time_next_tick_text
@@ -737,6 +767,9 @@ class ServerStatusMessagesWidget(ServerWidget):
             identifier="server status messages widget",
         )
 
+        self.max_chars = (self.size[0] - (self.padding * 2)) // self.text_size * 2
+        Logger.verbose(f"Max characters for logging: {self.max_chars}")
+
         self.text_widgets: dict = {
             "immutable": [self.create_text("Server logs", offset=0, text_size=16)],
             "mutable": [],
@@ -759,7 +792,7 @@ class ServerStatusMessagesWidget(ServerWidget):
 
         text_wrapped = WrappedText(
             text=text,
-            max_chars=90,
+            max_chars=self.max_chars,
             pos=(
                 self.pos[0] + self.padding,
                 self.pos[1] + (len(self.text_widgets["mutable"]) + self.text_size),
@@ -822,6 +855,11 @@ class StdOutOverride:
 
             self.buffer.add(text)
 
+    def flush(self):
+        """Rarely used, but keep it"""
+
+        self.file.flush()
+
     def log_to_widget(self, text: str) -> bool:
         """Returns whether the logging succeeded or not"""
 
@@ -848,21 +886,12 @@ sys.stdout = StdOutOverride(sys.stdout)
 ### Main ###
 server_win = ServerWindow()
 
-
-def callback():
-    if len(server.cache) == 0:
-        Logger.verbose("Callback from HiSock, no data")
-        return
-    Logger.verbose(
-        f"Callback from HiSock, most recent data sent:\n{server.cache[0].content}"
-    )
-
-
+# Start HiSock server
 def error_handler(error: Exception):
     server_win.error_message(Logger.log_error(error))
 
 
-server.start(callback=callback, error_handler=error_handler)
+server.start(callback=hisock_callback, error_handler=error_handler)
 
 
 def run_pygame_loop():
@@ -893,19 +922,25 @@ def run():
             print("\nExiting gracefully...")
             pygame.quit()
             return
-        except Exception as e:
+        except Exception as e:  # pylint: disable=redefined-outer-name
             error_handler(e)
 
 
 if __name__ != "__main__":
+    Logger.verbose("Not running by self, exiting!")
     sys.exit()
 
+Logger.verbose("Everything ready, running main loop!")
 run()
+Logger.verbose("Finished running!")
+Logger.verbose("Deleting stdout override!")
 del StdOutOverride
 sys.stdout = sys.__stdout__
 
 try:
+    Logger.verbose("Closing server")
     server.close()
+    Logger.verbose("Goodbye!")
 except KeyboardInterrupt:
     print("\nForcing!")
     force_exit(1)

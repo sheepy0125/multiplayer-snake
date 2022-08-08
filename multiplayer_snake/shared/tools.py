@@ -44,11 +44,12 @@ class Logger:
         )
 
     @staticmethod
-    def verbose(message: str):
-        from multiplayer_snake.shared.config_parser import parse
+    def verbose(message: str, check: bool = True):
+        if check:
+            from multiplayer_snake.shared.config_parser import parse
 
-        if not parse()["verbose"]:
-            return
+            if not parse()["verbose"]:
+                return
 
         print(
             f"{Logger.time()} {Logger.colors['warn']}[VERB]{Logger.colors['normal']} "
