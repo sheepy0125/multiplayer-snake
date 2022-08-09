@@ -8,7 +8,8 @@
 	/* Server config */
 	"server": {
 		"port": 6500,
-		"time_until_update": 0.1 /* ms */
+		"time_until_update": 0.1 /* ms */,
+		"wait_join_timeout": 10.0
 	},
 
 	/* Client config */

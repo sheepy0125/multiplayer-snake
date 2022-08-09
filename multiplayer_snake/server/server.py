@@ -13,7 +13,7 @@ from datetime import timedelta
 from os import _exit as force_exit
 from io import TextIOWrapper
 from random import randint
-from threading import Thread
+from threading import Thread, Event
 import sys
 from multiplayer_snake import constants
 from multiplayer_snake.shared.pygame_tools import DialogWidget
@@ -199,18 +199,22 @@ class SnakeGame:
 
         self._reset()
 
-    def add_player(self, ip_address: str, username: str) -> bool:
-        """Adds a player to the game, returns if valid"""
+    def add_player(self, ip_address: str, username: str):
+        """
+        Adds a player to the game and returns a ServerSnakePlayer if valid or None
+        Note: I cannot type annotate the return of this due to ServerSnakePlayer
+        not being defined yet
+        """
 
         # Too many players already
         if len(self.players_online) > self.num_players:
-            return False
+            return None
 
         # Username isn't good
         # The username will have a 4 digit discriminator with a hashtag.
         # Hashtags aren't allowed except for the discriminator.
         if not check_username(username[:-5]):
-            return False
+            return None
 
         # Everything seems fine, add the player
 
@@ -218,19 +222,18 @@ class SnakeGame:
         default_pos = self.default_positions[len(self.players_online)]
         default_dir = self.default_directions[len(self.players_online)]
 
-        self.players_online.append(
-            ServerSnakePlayer(
-                default_pos=default_pos,
-                default_dir=default_dir,
-                default_length=1,
-                identifier=username,
-                ip_address=ip_address,
-            )
+        snake_object = ServerSnakePlayer(
+            ip_address,
+            default_pos=default_pos,
+            default_dir=default_dir,
+            default_length=1,
+            identifier=username,
         )
+        self.players_online.append(snake_object)
 
         Logger.verbose(f"Added player {username}")
 
-        return True
+        return snake_object
 
     def snake_died(self, identifier: str, reason: str):
         Logger.log("The game has ended!")
@@ -246,21 +249,21 @@ snake_game = SnakeGame()
 class ServerSnakePlayer(BaseSnakePlayer):
     """Server side snake player"""
 
-    def _reset(self, ip_address: str, *args, **kwargs):
-        """BaseSnakePlayer reset, but it has more stuff"""
-
-        super()._reset(*args, **kwargs)
-
-        Logger.verbose(f"Resetting {self.identifier} snake")
-
+    def __init__(self, ip_address: str, *args, **kwargs):
+        ### Server data ###
         self.ip_address = ip_address
+        # Used for telling the join handler that the user fixed their username to match
+        self.username_changed_thread_event = Event()
 
+        ### Directions ###
         self.direction_velocity_enum = {
             "up": (0, -1),
             "down": (0, 1),
             "left": (-1, 0),
             "right": (1, 0),
         }
+
+        super().__init__(*args, **kwargs)
 
     def move(self):
         # Update position
@@ -346,11 +349,6 @@ class ServerFood:
 
 
 ### Server handlers ###
-def _wait_for_ready_signal() -> bool:
-    server.recv(recv_on="ready_for_events")
-    return True
-
-
 @server.on("join", threaded=True)
 def on_client_join(client_data: ClientInfo):
     Logger.log(
@@ -360,33 +358,44 @@ def on_client_join(client_data: ClientInfo):
 
     username = f"{client_data.name}#{get_discriminator()}"
 
-    if not snake_game.add_player(client_data.ip, username):
+    result: ServerSnakePlayer | None = snake_game.add_player(client_data.ip, username)
+    if result is None:
         # Failed to join, disconnect player
         Logger.log("Disconnecting player...")
-        server.disconnect_client(client_data)
+        server.disconnect_client(client_data, call_func=True)
         return
 
     send(server.send_client, client_data, "join_response", {"username": username})
 
-    # If we send the player connect event too fast, then the client may not receive it
-    # So, wait for the client to be ready
-    # This also serves as a sort-of keepalive to see if the client acts normally and/or
-    # doesn't die immediately
-    timeout = 10  # seconds
-    Logger.log(
-        f"Blocking join thread until client {username} says they're ready... "
-        f"timeout of {timeout} seconds"
-    )
-    waiting_ready_signal_thread = Thread(target=_wait_for_ready_signal)
-    waiting_ready_signal_thread.start()
-    start_time = time()
-    waiting_ready_signal_thread.join(float(timeout))
-    finished_waiting_time = time()
-    if finished_waiting_time - start_time >= timeout - 0.25:
-        Logger.log("It seems like they're dead, not going to block anymore")
-        server.disconnect_client(client_data.ip)
+    # The client is required to change their name to the username that we sent
+    # Wait for them to change it before allowing them to join
+    if not result.username_changed_thread_event.wait(
+        timeout=SERVER_CONFIG["wait_join_timeout"]
+    ):
+        Logger.fatal(
+            "Waiting for the player's username to change timed out, kicking them!"
+        )
+        server.disconnect_client(client_data, call_func=True)
         return
-    Logger.log("They're ready! Continuing...")
+
+    # Wait for the client to be ready for events (with a timeout)
+    wait_client_ready_event = Event()
+
+    def wait_client_ready():
+        Logger.verbose("Waiting for the client to state they're ready for events")
+        # The other client could have sent this! Oh well...
+        server.recv(recv_on="ready_for_events")
+        wait_client_ready_event.set()
+        Logger.verbose("Client's ready!")
+
+    wait_client_ready_thread = Thread(target=wait_client_ready)
+    wait_client_ready_thread.start()
+    if not wait_client_ready_event.wait(timeout=SERVER_CONFIG["wait_join_timeout"]):
+        Logger.verbose("Client's not ready within the timeout! Killing the thread...")
+        wait_client_ready_thread.join(timeout=0.25)
+        Logger.fatal("Waiting for the client to be ready timed out, kicking them!")
+        server.disconnect_client(client_data, call_func=True)
+        return
 
     send(
         server.send_all_clients,
@@ -426,14 +435,19 @@ def on_name_change(client_data: ClientInfo, old_name: str, new_name: str):
     Logger.verbose(f"Name change: {old_name} -> {new_name}")
     # Check if the name change was sane
     for player in snake_game.players_online:
+        if player.ip_address != client_data.ip:
+            continue
         if player.identifier == new_name:
+            # The name matches, set the thread event so the join handler knows to
+            # finish the connection
+            player.username_changed_thread_event.set()
             break
-    else:
         Logger.fatal(
             f"{old_name} changed their name to {new_name}, "
             "but that's not a valid player name! Kicking!"
         )
-        server.disconnect_client(client_data)
+        server.disconnect_client(client_data, call_func=True)
+        break
 
 
 @server.on("*", threaded=True)
@@ -843,7 +857,7 @@ class StdOutOverride:
         # Sometimes, what will happen is a message will be logged before the server
         # window is fully initialized
         # In that case, we need to put it in a buffer and output them later
-        self.buffer = set()
+        self.buffer = []
 
     def write(self, text: str):
         self.file.write(text)
@@ -853,11 +867,12 @@ class StdOutOverride:
             for ansi_color in Logger.colors.values():
                 text = text.replace(ansi_color, "")
 
-            self.buffer.add(text)
+            self.buffer.append(text)
 
     def flush(self):
         """Rarely used, but keep it"""
 
+        self.clear_buffer()
         self.file.flush()
 
     def log_to_widget(self, text: str) -> bool:
@@ -871,13 +886,17 @@ class StdOutOverride:
                 server_win.widgets[2].scroll(scroll_by=server_win.widgets[2].scroll_by)
 
             return True
+
+        # Sometimes, messages are logged before the logging widget is set up
+        # If this happens, just add them to the cache. It'll be flushed soon
+        # enough
         except NameError:
-            self.buffer.add(text)
+            self.buffer.append(text)
             return False
 
     def clear_buffer(self):
         while len(self.buffer) > 0:
-            if not self.log_to_widget(self.buffer.pop()):
+            if not self.log_to_widget(self.buffer.pop(0)):
                 break
 
 

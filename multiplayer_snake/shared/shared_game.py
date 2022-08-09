@@ -64,7 +64,7 @@ class BaseSnakePlayer:
         self.pos = list(default_pos)
         self.direction = default_dir
 
-        Logger.verbose(f"Snake {self.identifier} created")
+        Logger.verbose(f"Snake {self.identifier} reset / created")
 
     def reset(self):
         self._reset(*self._init_args, **self._init_kwargs)
