@@ -112,13 +112,37 @@ class SnakeGame:
             "uptime_changed": self.uptime_changed,
         }
 
-    def get_player_idx(self, identifier: str) -> int:
-        """Gets an index for a player with an identifier. Returns -1 if not found."""
+    def get_player_idx(
+        self, identifier: tuple | str, error_on_not_found: bool = False
+    ) -> int:
+        """
+        Gets an index for a player with an identifier.
+        The identifier could be the player's name or IP address.
+        Returns -1 if not found if ``error_on_not_found`` isn't set, otherwise an
+        IndexError will be raised.
+        """
+
+        search_by_ip = isinstance(identifier, tuple)
 
         for idx, player in enumerate(self.players_online):
-            if player.identifier == identifier:
+            # Name
+            if not search_by_ip:
+                if player.identifier == identifier:
+                    return idx
+                continue
+
+            # IP
+            if player.ip_address == identifier:
                 return idx
-        return -1
+
+        if not error_on_not_found:
+            return -1
+        raise IndexError
+
+    def get_default_pos_dir(self, player_idx: int):
+        default_pos = self.default_positions[player_idx]
+        default_dir = self.default_directions[player_idx]
+        return default_pos, default_dir
 
     def update_player(self, player_identifier: str, direction: str):
         """Update a player"""
@@ -178,11 +202,18 @@ class SnakeGame:
         self.start_time = int(time())
         self.last_update_time = time()
 
-        # Alert everyone that the game has started
+        # Update player positions
+        for idx, player in enumerate(self.players_online):
+            player.default_pos, player.default_dir = self.get_default_pos_dir(idx)
+
+        # Alert everyone that the game has started with their default positions
         send(
             server.send_all_clients,
             "game_started",
-            {"players": [player.identifier for player in self.players_online]},
+            {
+                player.identifier: player.default_dir
+                for player in snake_game.players_online
+            },
         )
 
     def pause(self):
@@ -217,11 +248,7 @@ class SnakeGame:
             return None
 
         # Everything seems fine, add the player
-
-        # Get the default position
-        default_pos = self.default_positions[len(self.players_online)]
-        default_dir = self.default_directions[len(self.players_online)]
-
+        default_pos, default_dir = self.get_default_pos_dir(len(self.players_online))
         snake_object = ServerSnakePlayer(
             ip_address,
             default_pos=default_pos,
@@ -412,10 +439,7 @@ def on_client_leave(client_data: ClientInfo):
     )
 
     # Remove player
-    for player in snake_game.players_online:
-        if player.identifier == client_data.name:
-            snake_game.players_online.remove(player)
-            break
+    del snake_game.players_online[snake_game.get_player_idx(client_data.ip)]
 
 
 @server.on("request_data")

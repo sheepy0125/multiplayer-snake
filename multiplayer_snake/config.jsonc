@@ -1,7 +1,7 @@
 /* Config for Multiplayer Snake */
 {
 	/* Global config */
-	"verbose": true,
+	"verbose": false,
 	"font_path": "terminus.ttf" /* Directory: /multiplayer_snake/ */,
 	"show_public_ip": false,
 
@@ -17,7 +17,7 @@
 
 	/* GUI config */
 	"gui": {
-		"window_size": [800, 800],
+		"window_size": [800, 600],
 		"widget_padding": 10,
 		"text_size": 14,
 		/* Colors (rgb) */

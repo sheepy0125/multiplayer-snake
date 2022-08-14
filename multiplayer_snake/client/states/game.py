@@ -7,7 +7,7 @@ Client join state code
 """
 
 ### Setup ###
-from multiplayer_snake.shared.common import pygame, Logger, hisock
+from multiplayer_snake.shared.common import pygame, Logger, hisock, ClientInfo
 from multiplayer_snake.shared.config_parser import parse
 from multiplayer_snake.shared.shared_game import SharedGame
 from multiplayer_snake.shared.pygame_tools import GlobalPygame
@@ -15,9 +15,7 @@ from multiplayer_snake.shared.hisock_tools import GlobalHiSock, hisock_callback,
 from multiplayer_snake.client.states.state import BaseState
 from multiplayer_snake.client.snake import ClientSnakePlayer
 from multiplayer_snake.client.food import ClientFood
-from multiplayer_snake.client.states.waiting_player_join_state import (
-    WaitingPlayerJoinState,
-)
+from multiplayer_snake.client.states.waiting_substate import WaitingSubstate
 
 
 CONFIG = parse()
@@ -99,7 +97,7 @@ class GameState(BaseState):
             "left",
         ]
         self.next_move: str
-        # Default direction, will be changed by `_on_player_connect`
+        # Default direction, will be changed by `_on_game_started`
         self.default_next_move: str | None = None
 
         ### Setup players ###
@@ -132,17 +130,13 @@ class GameState(BaseState):
         self.update_data: dict
 
         ### Substates ###
-        self.waiting_player_join_substate = WaitingPlayerJoinState()
+        self.waiting_substate = WaitingSubstate(["Waiting to connect..."])
+        self.waiting_substate.active = True
 
         ### HiSock listeners ###
         @client.on("player_connect")
         def _on_player_connect(player_data: list):
             num_of_players = len(player_data)
-
-            # Set the default next move to be how many players there are at the time of us joining
-            # If this is us connecting, then the variable will be None
-            if not self.default_next_move:
-                self.default_next_move = self.default_directions[num_of_players - 1]
 
             if num_of_players == 1:
                 return
@@ -151,7 +145,6 @@ class GameState(BaseState):
             for player in player_data:
                 player_name = player["identifier"]
                 if player_name == self.players["self"].name:
-
                     continue
                 # Found the other player's name
                 self.players["other"].name = player_name
@@ -160,8 +153,11 @@ class GameState(BaseState):
                 Logger.warn("Players have the same name, this shouldn't happen")
                 self.players["other"].name = self.players["self"].name
 
+            self.waiting_substate.active = False
+
         @client.on("game_started")
-        def _on_game_started(_: dict):
+        def _on_game_started(default_directions: dict):
+            self.default_next_move = default_directions[name]
             self.next_move = self.default_next_move
 
         @client.on("update")
@@ -180,9 +176,38 @@ class GameState(BaseState):
                 {"direction": self.next_move},
             )
 
+        @client.on("force_disconnect")
+        def _on_leave():
+            self.change_waiting_substate(["You've been kicked by the server!"])
+
+        @client.on("client_disconnect")
+        def _on_client_leave(client_data: ClientInfo):
+            Logger.verbose(f"Client disconnect received: {client_data!s}")
+            # Was it us? If so, we don't need to worry about it
+            # as "force_disconnect" will handle that
+            if client_data.name == self.players["self"].name:
+                return
+
+            # It wasn't us, so now there's one player
+            self.change_waiting_substate(
+                [
+                    "The other player left!",
+                    "",
+                    "Waiting for another",
+                    "player to join...",
+                ]
+            )
+
         # Everything is ready!
         # State that we're ready for receiving events
         send(client.send, "ready_for_events")
+
+        self.change_waiting_substate(["Waiting for the other", "player to join..."])
+
+    def change_waiting_substate(self, texts: list[str], activate: bool = True):
+        self.waiting_substate.change_texts(texts)
+        if activate:
+            self.waiting_substate.active = True
 
     @property
     def players_connected(self) -> int:
@@ -192,13 +217,10 @@ class GameState(BaseState):
             return 2
         return 1
 
-    @property
-    def rematch(self) -> bool:
-        """Not implemented"""
-
-        return False
-
     def handle_event(self, event: pygame.event.EventType):
+        if self.players_connected < 2:
+            return
+
         # Get keyboard input
         if event.type == pygame.KEYDOWN and event.key in self.key_enum:
             next_move = self.key_enum[event.key]
@@ -211,7 +233,7 @@ class GameState(BaseState):
                 self.next_move = next_move
 
     def update(self):
-        self.waiting_player_join_substate.update()
+        self.waiting_substate.update()
 
         if not self.update_called:
             return
@@ -219,6 +241,11 @@ class GameState(BaseState):
         # Update players
         player_data = self.update_data["players"]
         for player in self.players.values():
+            # Ensure player exists
+            if player.name not in player_data:
+                # We'll handle the disconnection in a bit
+                Logger.verbose(f"{player.name} doesn't exist, probably disconnected")
+                continue
             player.update(player_data[player.name])
 
         # Update foods
@@ -235,9 +262,8 @@ class GameState(BaseState):
 
     def draw(self):
         ### Draw substates if needed ###
-        # Waiting player join
-        if self.players_connected == 1:
-            self.waiting_player_join_substate.draw()
+        if self.waiting_substate.active:
+            self.waiting_substate.draw()
             return
 
         GlobalPygame.window.fill("black")

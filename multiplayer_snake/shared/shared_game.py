@@ -45,24 +45,28 @@ class BaseSnakePlayer:
     deal with whatever needs to happen when the snake dies.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self, default_pos: tuple = None, default_dir: str = None, *args, **kwargs
+    ):
+        # Default positions
+        self.default_pos = default_pos if default_pos is not None else (-1, -1)
+        self.default_dir = default_dir if default_dir is not None else "right"
+
         self._reset(*args, **kwargs)
         self._init_args = args
         self._init_kwargs = kwargs
 
     def _reset(
         self,
-        default_pos: tuple = (0, 0),
-        default_dir: str = "right",
         default_length: int = 1,
         identifier: str = "unknown snake",
     ):
         self.identifier = identifier
         self.alive = True
-        self.tail: list[tuple] = [default_pos]  # List of positions
+        self.tail: list[tuple] = [self.default_pos]  # List of positions
         self.length = default_length
-        self.pos = list(default_pos)
-        self.direction = default_dir
+        self.pos = list(self.default_pos)
+        self.direction = self.default_dir
 
         Logger.verbose(f"Snake {self.identifier} reset / created")
 

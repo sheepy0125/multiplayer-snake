@@ -127,7 +127,7 @@ def run():
             if not run_pygame_loop():
                 # Request to exit
                 pygame.quit()
-                return
+                raise KeyboardInterrupt
         except KeyboardInterrupt:
             print("\nExiting gracefully", end="... ")
             state.current.close()
